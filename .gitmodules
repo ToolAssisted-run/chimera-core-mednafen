@@ -1,3 +1,6 @@
 [submodule "extern/zlib"]
 	path = extern/zlib
 	url = https://github.com/madler/zlib
+[submodule "extern/libchdr"]
+	path = extern/libchdr
+	url = https://github.com/rtissera/libchdr

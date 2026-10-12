@@ -5,7 +5,8 @@
 #
 # Usage: tests/try.sh [-g] <machine> <game folder under tests/games-local> [run options]
 #   -g   the sandbox build and not the reference
-# For a disc the folder's .cue is the disc; otherwise its one file is the game.
+# For a disc the folder's .cue or .chd is the disc; otherwise its one file is
+# the game.
 # SETTINGS in the environment adds settings to the project, and SAVES save
 # data files (see below).
 set -eu
@@ -27,7 +28,7 @@ for f in "$here/roms-local"/*; do
 		*) ln -s "$f" "$work/$(basename "$f")" ;;
 	esac
 done
-first="$(ls "$here/games-local/$game" | grep -i '\.cue$' | head -1)"
+first="$(ls "$here/games-local/$game" | grep -i '\.cue$\|\.chd$' | head -1)"
 if [ -n "$first" ]; then slot="disc"; else slot="cart"; first="$(ls "$here/games-local/$game" | head -1)"; fi
 # SAVES lists save data files the project starts from: SAVES="/path/a.bkr /path/b.bcr"
 saves=""

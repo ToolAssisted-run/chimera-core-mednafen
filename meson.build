@@ -78,12 +78,34 @@ foreach n : zlib_names
 endforeach
 zlib = static_library('z', zlib_sources, c_args: ['-DHAVE_UNISTD_H', '-w'], pic: false)
 
+# libchdr, pinned as a submodule, for CHD disc images (waterbox/chd-disc.cpp):
+# its own files, the LZMA decoder it carries, and dr_flac inside it. It
+# inflates with the zlib above and takes Zstandard from Mednafen's own copy,
+# which the core links already - two copies of one library's functions would
+# not link.
+chdr = 'extern/libchdr'
+chdr_sources = []
+foreach n : ['bitstream', 'cdrom', 'chd', 'codec_cdfl', 'codec_cdlz', 'codec_cdzl', 'codec_cdzs', 'codec_flac',
+  'codec_huff', 'codec_lzma', 'codec_zlib', 'codec_zstd', 'flac', 'huffman']
+  chdr_sources += files(chdr / 'src' / 'libchdr_' + n + '.c')
+endforeach
+chdr_lzma = run_command('sh', '-c', 'ls "$1"/*.c', 'sh', meson.current_source_dir() / chdr / 'deps/lzma-25.01/src', check: true).stdout().strip().split('\n')
+foreach f : chdr_lzma
+  chdr_sources += files(f)
+endforeach
+libchdr = static_library('chdr', chdr_sources,
+  include_directories: include_directories(chdr / 'include', chdr / 'deps/lzma-25.01/include', 'extern/zlib', md / 'src/zstd'),
+  c_args: ['-DCHDR_SYSTEM_ZLIB', '-DCHDR_SYSTEM_ZSTD', '-DWANT_RAW_DATA_SECTOR=1', '-DWANT_SUBCODE=1', '-DVERIFY_BLOCK_CRC=1',
+    '-DZ7_ST', '-w'],
+  pic: false)
+chdr_inc = include_directories(chdr / 'include')
+
 listed = run_command(files('waterbox/list-sources.sh'), meson.current_source_dir() / md / 'src', check: true).stdout().strip().split('\n')
 core_sources = []
 foreach f : listed
   core_sources += files(md / 'src' / f)
 endforeach
-core_sources += files('waterbox/mdfn-interfaces.cpp', 'waterbox/cinterface.cpp')
+core_sources += files('waterbox/mdfn-interfaces.cpp', 'waterbox/cinterface.cpp', 'waterbox/chd-disc.cpp')
 
 if meson.is_cross_build()
   # ---- the guest: core.wbx --------------------------------------------------
@@ -93,8 +115,8 @@ if meson.is_cross_build()
 
   executable('core', core_sources + files('waterbox/guest-syscalls.cpp'),
     name_suffix: 'wbx',
-    link_with: zlib,
-    include_directories: inc,
+    link_with: [libchdr, zlib],
+    include_directories: [inc, chdr_inc],
     link_args: [
       '-static', '-no-pie',
       '-Wl,--eh-frame-hdr', '-Wl,-O2', '-Wl,--no-relax', '-Wl,-z,stack-size=8388608',
@@ -111,10 +133,10 @@ else
   m = meson.get_compiler('c').find_library('m', required: false)
   threads = dependency('threads')
   executable('run-native', core_sources + files('waterbox/run-native.c'),
-    include_directories: [include_directories('waterbox/native-shim'), inc],
+    include_directories: [include_directories('waterbox/native-shim'), inc, chdr_inc],
     c_args: ['-I' + mb / 'source/guest/include', '-I' + mb / 'extern/jsmn'],
     cpp_args: ['-I' + mb / 'source/guest/include', '-I' + mb / 'extern/jsmn'],
-    link_with: zlib,
+    link_with: [libchdr, zlib],
     dependencies: [m, threads])
 
   mbhost = mb / 'build/meson-linux/source/host'

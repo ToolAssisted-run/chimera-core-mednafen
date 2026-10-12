@@ -7,9 +7,10 @@
    "min": 1,
    "max": 8,
    "formats": [
-    "cue"
+    "cue",
+    "chd"
    ],
-   "help": "The game's CD image: a .cue file, with the track files it names beside it. For a game on several discs, list them all in order. The first is in the drive when the console starts.",
+   "help": "The game's CD image: a .cue file with the track files it names beside it, or a .chd file. For a game on several discs, list them all in order. The first is in the drive when the console starts.",
    "exposedWhen": {
     "setting": "machine",
     "in": [

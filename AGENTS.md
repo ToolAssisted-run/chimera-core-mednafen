@@ -18,7 +18,8 @@ design log, with what was decided, why, and what was measured.
 - `extern/mednafen` - Mednafen 1.32.1, NOT in git: `waterbox/fetch-mednafen.sh`
   downloads the official archive, checks its SHA-256, unpacks it and applies
   `patches/`. Mednafen has no public repository, so the version is the
-  archive. `extern/zlib` - zlib, a submodule.
+  archive. `extern/zlib` - zlib, and `extern/libchdr` - libchdr 0.3.0, for
+  CHD disc images: both submodules.
 - `patches/` - the numbered patches, each with what it changes and why above
   the diff. Every change is inside `#if defined(CHIMERA_CORE)`.
 - `meson.build` - the build of both flavors. `waterbox/list-sources.sh`
@@ -27,6 +28,8 @@ design log, with what was decided, why, and what was measured.
 - `waterbox/cinterface.cpp` - the frontend: the functions Chimera's engine
   calls, over Mednafen's description of a system (`MDFNGI`). The same file is
   compiled for the sandbox and for the host.
+- `waterbox/chd-disc.cpp` - CHD disc images: a CHD shown to Mednafen's own
+  cue reader as the cue sheet and track files it stands for.
 - `waterbox/mdfn-interfaces.cpp` - what Mednafen's files ask of its program
   (settings, file names, messages), answered. `waterbox/frontend.h` is what
   it asks of `cinterface.cpp`.
@@ -70,7 +73,7 @@ changes the core, and say in the commit what it printed.
 
 The Virtual Boy tests need no file. The Saturn tests need a game and the two
 BIOS files, which this repository cannot contain (`SATURN_GAME`,
-`SATURN_GAME2`, `SATURN_BIOS_JP`, `SATURN_BIOS_NA_EU`, or `tests/games-local`
+`SATURN_GAME2`, `SATURN_GAME_CHD`, `SATURN_BIOS_JP`, `SATURN_BIOS_NA_EU`, or `tests/games-local`
 and `tests/roms-local`). Without them the script says SKIP. A skipped test
 proves nothing: if you do not have the files, say so in your report.
 

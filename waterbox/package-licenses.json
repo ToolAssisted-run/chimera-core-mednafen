@@ -2,7 +2,7 @@
   "package": "mednafen",
   "effectiveTerms": "GPL-2.0-or-later",
   "commercialUse": "allowed under the GPL",
-  "note": "The core is Mednafen 1.32.1 (GPL-2.0-or-later), of which four systems are built: the Sega Saturn, the Virtual Boy, the PC-FX and the Atari Lynx, with this repository's patches (GPL-2.0-or-later) and integration (MIT). The program is distributed under the GPL version 2 or later. Inside Mednafen, and compiled in: the Lynx emulation from Handy by K. Wilkins (zlib-style licence, carried in this package), the V810 processor from Reality Boy by David Tucker (GPL-2.0-or-later), Blip_Buffer and the resamplers by Shay Green (LGPL-2.1-or-later, conveyed here under the GPL as its section 3 allows), trio (an ISC-style notice, in its source file carried in this package), Tremor (BSD-3-Clause), libmpcdec (BSD-3-Clause) and Zstandard's decoder (BSD-3-Clause). zlib (Zlib licence) is linked in. The package contains no BIOS and no game: the user supplies them.",
+  "note": "The core is Mednafen 1.32.1 (GPL-2.0-or-later), of which four systems are built: the Sega Saturn, the Virtual Boy, the PC-FX and the Atari Lynx, with this repository's patches (GPL-2.0-or-later) and integration (MIT). The program is distributed under the GPL version 2 or later. Inside Mednafen, and compiled in: the Lynx emulation from Handy by K. Wilkins (zlib-style licence, carried in this package), the V810 processor from Reality Boy by David Tucker (GPL-2.0-or-later), Blip_Buffer and the resamplers by Shay Green (LGPL-2.1-or-later, conveyed here under the GPL as its section 3 allows), trio (an ISC-style notice, in its source file carried in this package), Tremor (BSD-3-Clause), libmpcdec (BSD-3-Clause) and Zstandard's decoder (BSD-3-Clause). zlib (Zlib licence) and libchdr (BSD-3-Clause), which reads CHD disc images, are linked in; libchdr carries the LZMA decoder of the LZMA SDK (public domain) and dr_flac (public domain or MIT-0). The package contains no BIOS and no game: the user supplies them.",
   "components": [
     {
       "name": "chimera-core-mednafen (integration)",
@@ -62,6 +62,20 @@
       "commit": "{submodule:extern/zlib}",
       "file": "extern/zlib/LICENSE",
       "sourceUrl": "https://github.com/madler/zlib/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "libchdr",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/rtissera/libchdr",
+      "commit": "{submodule:extern/libchdr}",
+      "file": "extern/libchdr/LICENSE.txt",
+      "sourceUrl": "https://github.com/rtissera/libchdr/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "LZMA SDK decoder (in libchdr)",
+      "license": "public domain",
+      "url": "https://www.7-zip.org/sdk.html",
+      "file": "extern/libchdr/deps/lzma-25.01/LICENSE"
     }
   ]
 }

@@ -23,19 +23,19 @@ New, and not published yet.
 - On Windows, Chimera's headless runner plays the Virtual Boy program and a
   1,500-frame movie of Virtua Fighter Remix and ends on the same memory and
   the same picture as on Linux. Chimera's window has not been tried there.
-- Not there: CHD disc images (a disc is a `.cue` with its track files), the
-  Saturn's ST-V arcade board, save data of the PC-FX and of Virtual Boy
-  cartridges, and the Saturn's video and sound memory in RAM Watch.
+- Not there: the Saturn's ST-V arcade board, save data of the PC-FX and of
+  Virtual Boy cartridges, and the Saturn's video and sound memory in RAM
+  Watch.
 
 ## What you bring
 
-- **Saturn**: a game as a `.cue` file with its track files beside it, and
-  the BIOS of the game's region. The core reads the disc and Chimera's
+- **Saturn**: a game as a `.cue` file with its track files beside it, or as
+  a `.chd` file, and the BIOS of the game's region. The core reads the disc and Chimera's
   Firmware page asks for the one it needs: the Japanese BIOS (usually
   `sega_101.bin`) for games of Japan and Taiwan, the North American and
   European one (usually `mpr-17933.bin`) for the others.
 - **Virtual Boy**: a `.vb` or `.vboy` cartridge file. It needs no BIOS.
-- **PC-FX**: a `.cue` disc and the BIOS, `pcfx.rom`.
+- **PC-FX**: a `.cue` or `.chd` disc and the BIOS, `pcfx.rom`.
 - **Lynx**: a `.lnx` cartridge file and the boot ROM, `lynxboot.img`.
 
 ## Buttons and settings

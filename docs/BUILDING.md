@@ -17,14 +17,14 @@ So the version this core builds is an archive's name and its SHA-256, both
 written in `waterbox/fetch-mednafen.sh`:
 
 ```sh
-git submodule update --init extern/zlib
+git submodule update --init
 waterbox/fetch-mednafen.sh
 ```
 
 downloads the archive once (into `build/cache`), checks it, unpacks it into
 `extern/mednafen` and applies the patches in `patches/`. `extern/mednafen`
 is not in git. zlib is a submodule because Mednafen brings none and the
-sandbox's toolchain has none.
+sandbox's toolchain has none; libchdr is a submodule for CHD disc images.
 
 A change to Mednafen is kept as a patch. Edit the file in
 `extern/mednafen`, build and test, and then:
@@ -120,6 +120,8 @@ runs every test and says, for each, what was compared. The Virtual Boy
 tests need nothing: the script assembles a small program for it. The Saturn
 tests need a game (a folder with a `.cue` and its tracks, `SATURN_GAME`, or
 `tests/games-local/vfremix`) and the two BIOS files in `tests/roms-local`
-(`sega_101.bin`, `mpr-17933.bin`); they say SKIP without them. Without
+(`sega_101.bin`, `mpr-17933.bin`); they say SKIP without them. The CHD
+tests need a `.chd` made from that game's cue sheet (`chdman createcd -i
+<the .cue> -o <a .chd>`, `SATURN_GAME_CHD`). Without
 `CHIMERA_ROOT` the tests that run the package in Chimera's engine are
 skipped.

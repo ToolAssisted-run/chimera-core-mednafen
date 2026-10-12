@@ -8,7 +8,7 @@
    "controller": "Saturn Controllers",
    "virtualWidth": 302,
    "virtualHeight": 240,
-   "extensions": {".cue": "SAT"},
+   "extensions": {".cue": "SAT", ".chd": "SAT"},
    "players": {"port1": 1, "port2": 2, "port3": 3, "port4": 4, "port5": 5, "port6": 6, "port7": 7, "port8": 8, "port9": 9, "port10": 10, "port11": 11, "port12": 12, "builtin": 0},
    "deviceOnlyOn": {"keyboard": ["port1", "port2"], "jpkeyboard": ["port1", "port2"]},
    "family": {"mouse": "Mouse", "gun": "Gun", "keyboard": "Key", "jpkeyboard": "Key"},

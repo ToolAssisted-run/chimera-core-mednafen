@@ -34,6 +34,7 @@
 #include <waterbox_settings.h>
 #include <waterbox_slots.h>
 
+#include "chd-disc.h"
 #include "frontend.h"
 
 using namespace Mednafen;
@@ -427,7 +428,10 @@ void open_discs(std::vector<std::string> const &images)
 	if (!g_discs.empty()) return;
 	for (std::string const &image : images)
 	{
-		std::unique_ptr<CDAccess> access(CDAccess_Open(&NVFS, image, false));
+		// a .chd goes through this core's reader, anything else through
+		// Mednafen's own
+		bool const chd = image.size() > 4 && !strcasecmp(image.c_str() + image.size() - 4, ".chd");
+		std::unique_ptr<CDAccess> access(chd ? open_chd_disc(image) : CDAccess_Open(&NVFS, image, false));
 		g_discs.push_back(new lit_disc(std::move(access)));
 		g_discNames.push_back(image);
 	}

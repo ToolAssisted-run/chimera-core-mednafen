@@ -99,7 +99,7 @@ each from the owner before anything can be said of them beyond "it builds".
 | 2 | The same in the sandbox, with the Saturn's helper thread gone | The reference and the sandbox give the same digests, frame by frame; savestates | done 2026-10-12: 1,500 frames the same natively, in the sandbox, with a state saved and loaded every frame, with the state moved to a new sandbox, and after going back to a kept state |
 | 3 | Controllers and settings generated from Mednafen's descriptions; the package | Chimera's package checks; a project run by Chimera's engine | done 2026-10-12: 743 buttons and 232 axes over the four systems, 58 settings; Chimera's package checks pass (18 of 18); a project of Virtua Fighter Remix with its BIOS as firmware plays a movie in Chimera's engine and the movie's presses reach the game |
 | 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | waits for games |
-| 5 | Save data, lag frames, disc change, CHD | Tests for each | done 2026-10-12 except CHD: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data, the drive's lid and disc selector. Not done: CHD images |
+| 5 | Save data, lag frames, disc change, CHD | Tests for each | done 2026-10-12: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data, the drive's lid and disc selector, CHD images |
 | 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | done 2026-10-12 except a run on a CI runner: the test script (32 tests), the window test (4), README, AGENTS.md, the CI workflow (never run: the repository is not published; a fresh clone builds and passes the 13 tests that need no file). Windows: Chimera's headless runner plays the Virtual Boy project and a 1,500-frame Saturn movie with presses and ends on the same RAM and the same pictures as Linux |
 | 7 | Publishing | The owner's word | not started |
 
@@ -146,7 +146,7 @@ each from the owner before anything can be said of them beyond "it builds".
   before the machine is built (patch 0005). The two files are mounted under
   names of this core's own, because Mednafen refuses a file named like one
   known BIOS that holds another.
-- **Not done yet**: CHD images, the Saturn's ST-V arcade board.
+- **Not done yet**: the Saturn's ST-V arcade board.
 
 ## What step 5 decided
 
@@ -186,3 +186,31 @@ Chimera was changed to ask with the game's files and the settings chosen so
 far (chimera commit "a core is asked about a game with the game's files",
 made on 2026-10-12 and not on Chimera's main when this was written). This
 core's Saturn needs a Chimera with that change.
+
+## CHD disc images (2026-10-12)
+
+Mednafen reads a disc from a cue sheet and its track files and has no reader
+for CHD. Other Chimera cores read CHD with libchdr, and so does this one
+(`waterbox/chd-disc.cpp`; libchdr 0.3.0 is a submodule).
+
+- **A CHD is shown to Mednafen's own cue reader as the cue sheet and the
+  track files it stands for.** The cue sheet is written from the CHD's track
+  records, and each track file is a view of that track's sectors,
+  decompressed as they are read. So there is one idea of what a disc is: the
+  table of contents, the gaps, the subchannel and the lead-out are
+  Mednafen's code for both formats. No Mednafen file is patched for it.
+- **Audio bytes change places**: a CHD holds audio samples high byte first,
+  a cue sheet's file low byte first.
+- libchdr inflates with the zlib submodule and takes Zstandard from
+  Mednafen's own copy, which the core links already.
+- Not read: a CHD's own subchannel data (the subchannel is made by Mednafen,
+  as for a cue sheet), and GD-ROM images.
+
+Measured: a CHD made from Virtua Fighter Remix's cue sheet with chdman 0.264
+(LZMA, deflate and FLAC blocks) gives, in the sandbox, the 48 digests of
+RAM, picture and sound the cue sheet gives natively over 2,400 frames with
+presses, into a fight that plays the disc's audio. With the audio bytes left
+unswapped the two differ from frame 1750, so the comparison does see them.
+The savestate tests pass on the CHD, the one that goes back to a kept state
+among them, and a project whose disc is the CHD ends on the same picture in
+Chimera's engine.

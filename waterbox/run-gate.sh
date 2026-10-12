@@ -10,7 +10,10 @@
 # SATURN_GAME=<folder> is a Saturn game for the tests that need one: a
 # folder holding a .cue and its track files (tests/games-local/vfremix when
 # not given). SATURN_GAME2=<folder> is any second Saturn disc, for the test
-# that changes discs (tests/games-local/vf2 when not given). SATURN_BIOS_JP and SATURN_BIOS_NA_EU are the two BIOS files
+# that changes discs (tests/games-local/vf2 when not given). SATURN_GAME_CHD
+# is a .chd file made from SATURN_GAME's cue sheet (chdman createcd), for the
+# test that a CHD reads as its cue sheet does (the .chd in
+# tests/games-local/vfremix-chd when not given). SATURN_BIOS_JP and SATURN_BIOS_NA_EU are the two BIOS files
 # (tests/roms-local/sega_101.bin and mpr-17933.bin when not given).
 #
 # Needs the native build (meson setup build/meson-native ... && ninja) and
@@ -41,6 +44,7 @@ core="$root/build/meson-guest/core.wbx"
 chimera_root="${CHIMERA_ROOT:-}"
 game="${SATURN_GAME:-$root/tests/games-local/vfremix}"
 game2="${SATURN_GAME2:-$root/tests/games-local/vf2}"
+game_chd="${SATURN_GAME_CHD:-$(ls "$root"/tests/games-local/vfremix-chd/*.chd 2> /dev/null | head -1)}"
 bios_jp="${SATURN_BIOS_JP:-$root/tests/roms-local/sega_101.bin}"
 bios_na="${SATURN_BIOS_NA_EU:-$root/tests/roms-local/mpr-17933.bin}"
 work="$(mktemp -d)"
@@ -252,6 +256,28 @@ if [ -n "$cue" ] && [ -f "$bios_jp" ] && [ -f "$bios_na" ]; then
 		report "saturn:disc-change" SKIP "no second Saturn disc (SATURN_GAME2)"
 	fi
 
+	# a CHD made from the cue sheet is the same disc: the same run, far enough
+	# into the game that it plays the disc's audio tracks (a CHD holds audio
+	# with its bytes the other way round, and a run that never played any
+	# would not notice them left that way), then the savestate tests on it
+	if [ -n "$game_chd" ] && [ -f "$game_chd" ]; then
+		folder ss-chd '{"machine":"saturn"}' disc "$game_chd"; sat_firmware ss-chd
+		chdrun="--frames 2400 --report 50 --press 11:900:10 --press 11:1300:10 --press 11:1500:10 --press 10:1700:10 --press 10:1900:10"
+		nat ss-long ss $chdrun
+		box ss-chd ss-chd $chdrun
+		box ss-chd-session ss-chd $chdrun --session
+		box ss-chd-rewind ss-chd --frames 2400 --report 5 --press 11:900:10 --rewind
+		for n in ss-long ss-chd ss-chd-session; do stream "$work/$n.out" > "$work/$n.stream"; done
+		check "saturn:chd" "the game from a CHD in the sandbox prints the $(wc -l < "$work/ss-long.stream") digests the game from its cue sheet prints natively, over 2400 frames with presses" \
+			same "$work/ss-long.stream" "$work/ss-chd.stream"
+		check "saturn:chd-states" "from the CHD, a state moved to a new sandbox half way changes nothing" \
+			sh -c "cmp -s '$work/ss-chd.stream' '$work/ss-chd-session.stream' && [ -s '$work/ss-chd-session.stream' ]" 
+		check "saturn:chd-rewind" "from the CHD, a state kept at frame 1200 and loaded at 1800: the frames after the load repeat those after the save" \
+			repeats "$work/ss-chd-rewind.out" 1200 1800 600 5
+	else
+		for t in chd chd-states chd-rewind; do report "saturn:$t" SKIP "no CHD of the Saturn game (SATURN_GAME_CHD)"; done
+	fi
+
 	# save data: out, changed, in again, and out unchanged
 	if [ -s "$work/ss-saves/saturn.bkr" ]; then
 		mkdir -p "$work/mine"
@@ -283,7 +309,7 @@ sys.exit(0 if ids[:2] == ['saturn_jp.bin', 'saturn_na_eu.bin'] and all('required
 	check "saturn:firmware-missing" "without its BIOS the console is refused, by the file's name" \
 		grep -q 'Init failed.*saturn_.*\.bin' "$work/ss-nobios.out" "$work/ss-nobios.err"
 else
-	for t in runs pad sandbox controls bus lag state-every-frame state-other-box state-rewind setting devices lid disc-change save-data firmware-asked firmware-missing; do
+	for t in runs pad sandbox controls bus lag state-every-frame state-other-box state-rewind setting devices lid disc-change chd chd-states chd-rewind save-data firmware-asked firmware-missing; do
 		report "saturn:$t" SKIP "no Saturn game with its two BIOS files (SATURN_GAME, SATURN_BIOS_JP, SATURN_BIOS_NA_EU)"
 	done
 fi
@@ -322,12 +348,23 @@ print('saturn_jp.bin' if 'starts with the Japanese BIOS' in n else 'saturn_na_eu
 			sh -c "grep -q '^frames=1500' '$work/ss.engine' && grep -q '^frames=1500' '$work/ss-idle.engine' && [ -s '$work/ss.tga' ] && ! cmp -s '$work/ss.tga' '$work/ss-idle.tga'"
 		check "engine:saturn-bus" "Chimera's RAM search reads the Saturn's bus: $(grep -o '2 live ranges, [0-9]* of [0-9]* bytes searched' "$work/ss.engine")" \
 			grep -q "2 live ranges, 2097152 of 134217728 bytes searched, every candidate live and reading what the bus peeks" "$work/ss.engine"
+		if [ -n "$game_chd" ] && [ -f "$game_chd" ]; then
+			python3 "$mk" "$pkg" "$work/ss-chd.chimeraProject" 1500 machine=saturn "panel=$work/ss.out" \
+				"press=P1 Start:900:10" "press=P1 Start:1300:10" "firmware=$id=$bios" -- "disc=$game_chd" > "$work/ss-chd.project.log" 2>&1
+			"$engine" --project "$work/ss-chd.chimeraProject" "$pkg" --files "$(dirname "$game_chd")" --firmware "$id=$bios" \
+				--screenshot "1499=$work/ss-chd.tga" > "$work/ss-chd.engine" 2>&1
+			check "engine:saturn-chd" "a project whose disc is the CHD plays the same movie in Chimera's engine and ends on the picture the cue sheet's project ends on" \
+				sh -c "grep -q '^frames=1500' '$work/ss-chd.engine' && cmp -s '$work/ss.tga' '$work/ss-chd.tga'"
+		else
+			report "engine:saturn-chd" SKIP "no CHD of the Saturn game (SATURN_GAME_CHD)"
+		fi
 	else
 		report "engine:saturn" SKIP "no Saturn game with its BIOS files"
 		report "engine:saturn-bus" SKIP "no Saturn game with its BIOS files"
+		report "engine:saturn-chd" SKIP "no Saturn game with its BIOS files"
 	fi
 else
-	for t in vb saturn saturn-bus; do
+	for t in vb saturn saturn-bus saturn-chd; do
 		report "engine:$t" SKIP "set CHIMERA_ROOT to a Chimera checkout with build/meson-linux/chimera-run and this core's package (waterbox/build-package.sh -r <it>)"
 	done
 fi
