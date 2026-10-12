@@ -1,0 +1,67 @@
+{
+  "package": "mednafen",
+  "effectiveTerms": "GPL-2.0-or-later",
+  "commercialUse": "allowed under the GPL",
+  "note": "The core is Mednafen 1.32.1 (GPL-2.0-or-later), of which four systems are built: the Sega Saturn, the Virtual Boy, the PC-FX and the Atari Lynx, with this repository's patches (GPL-2.0-or-later) and integration (MIT). The program is distributed under the GPL version 2 or later. Inside Mednafen, and compiled in: the Lynx emulation from Handy by K. Wilkins (zlib-style licence, carried in this package), the V810 processor from Reality Boy by David Tucker (GPL-2.0-or-later), Blip_Buffer and the resamplers by Shay Green (LGPL-2.1-or-later, conveyed here under the GPL as its section 3 allows), trio (an ISC-style notice, in its source file carried in this package), Tremor (BSD-3-Clause), libmpcdec (BSD-3-Clause) and Zstandard's decoder (BSD-3-Clause). zlib (Zlib licence) is linked in. The package contains no BIOS and no game: the user supplies them.",
+  "components": [
+    {
+      "name": "chimera-core-mednafen (integration)",
+      "license": "MIT, and GPL-2.0-or-later for patches/",
+      "url": "https://github.com/ToolAssisted-run/chimera-core-mednafen",
+      "commit": "{selfCommit}",
+      "file": "LICENSE",
+      "sourceUrl": "https://github.com/ToolAssisted-run/chimera-core-mednafen/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "Mednafen 1.32.1",
+      "license": "GPL-2.0-or-later",
+      "url": "https://mednafen.github.io/",
+      "file": "extern/mednafen/COPYING",
+      "sourceUrl": "https://mednafen.github.io/releases/files/mednafen-1.32.1.tar.xz"
+    },
+    {
+      "name": "Mednafen's authors",
+      "license": "GPL-2.0-or-later",
+      "url": "https://mednafen.github.io/",
+      "file": "extern/mednafen/AUTHORS"
+    },
+    {
+      "name": "Handy (the Lynx emulation in Mednafen)",
+      "license": "zlib-style",
+      "url": "https://handy.sourceforge.net/",
+      "file": "extern/mednafen/src/lynx/license.txt"
+    },
+    {
+      "name": "trio (in Mednafen)",
+      "license": "ISC-style",
+      "url": "https://daniel.haxx.se/projects/trio/",
+      "file": "extern/mednafen/src/trio/trio.c"
+    },
+    {
+      "name": "Tremor (in Mednafen)",
+      "license": "BSD-3-Clause",
+      "url": "https://xiph.org/vorbis/",
+      "file": "extern/mednafen/src/tremor/COPYING.TREMOR"
+    },
+    {
+      "name": "libmpcdec (in Mednafen)",
+      "license": "BSD-3-Clause",
+      "url": "https://www.musepack.net/",
+      "file": "extern/mednafen/src/mpcdec/COPYING.MPCDEC"
+    },
+    {
+      "name": "Zstandard (in Mednafen)",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/facebook/zstd",
+      "file": "extern/mednafen/src/zstd/LICENSE.ZSTD"
+    },
+    {
+      "name": "zlib",
+      "license": "Zlib",
+      "url": "https://zlib.net/",
+      "commit": "{submodule:extern/zlib}",
+      "file": "extern/zlib/LICENSE",
+      "sourceUrl": "https://github.com/madler/zlib/archive/{commit}.tar.gz"
+    }
+  ]
+}

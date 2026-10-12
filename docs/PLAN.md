@@ -83,7 +83,7 @@ Mednafen is a numbered patch in `patches/`.
 - Saturn: Virtua Fighter Remix (USA) and Virtua Fighter 2, and the BIOS
   files.
 - Lynx: the boot ROM, no game.
-- PC-FX: no game, and no `pcfx.rom` (only the PC-FX GA board's ROM).
+- PC-FX: the BIOS (`pcfx.rom`), no game.
 - Virtual Boy: no game.
 
 So the Saturn can be proven with games now. The other three need a game
@@ -95,7 +95,7 @@ each from the owner before anything can be said of them beyond "it builds".
 |---|---|---|---|
 | 1 | Native build of the four systems and the frontend; the Saturn boots a game | Picture, sound, a controller press changes the picture | done 2026-10-12: Virtua Fighter Remix, BIOS logo, attract fight, Start changes the picture |
 | 2 | The same in the sandbox, with the Saturn's helper thread gone | The reference and the sandbox give the same digests, frame by frame; savestates | done 2026-10-12: 1,500 frames the same natively, in the sandbox, with a state saved and loaded every frame, with the state moved to a new sandbox, and after going back to a kept state |
-| 3 | Controllers and settings generated from Mednafen's descriptions; the package | Chimera's package checks; a project run by Chimera's engine | not started |
+| 3 | Controllers and settings generated from Mednafen's descriptions; the package | Chimera's package checks; a project run by Chimera's engine | done 2026-10-12: 743 buttons and 232 axes over the four systems, 58 settings; Chimera's package checks pass (18 of 18); a project of Virtua Fighter Remix with its BIOS as firmware plays a movie in Chimera's engine and the movie's presses reach the game |
 | 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | waits for games |
 | 5 | Save data, lag frames, disc change, CHD | Tests for each | not started |
 | 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | not started |
@@ -117,3 +117,32 @@ each from the owner before anything can be said of them beyond "it builds".
   between the save and the load.
 - Speed: the Saturn runs at about 180 frames a second in the sandbox on the
   development machine (Virtua Fighter Remix, attract mode).
+
+## What step 3 decided
+
+- **A control is named once for a port, whatever is plugged in.** "P1 A" is
+  the A of the pad, the 3D pad, the wheel or the mission stick in port 1,
+  because Mednafen gives them the same input name. A mouse's, a gun's and a
+  keyboard's controls carry the device in their name ("P1 Mouse Left",
+  "P1 Gun Trigger", "P1 Key F1"). What a device itself calls a shared control
+  ("L Gear Shift" for a wheel's Up) is the label Chimera shows over the
+  column.
+- **Every device on every port**, except keyboards, which are on ports 1
+  and 2 only. That is 591 buttons and 216 axes for the Saturn; a project
+  shows the ones of what is plugged in.
+- **A two-way switch is a button** (held is its second position: the 3D
+  pad's analog mode, a mission stick's autofire switches, the PC-FX pad's
+  mode switches, the Virtual Boy's low battery). A switch of more positions
+  is an axis that takes the position's number.
+- **A stick is -32768 to 32767** and written to Mednafen as it is, so no
+  value Mednafen can take is out of reach. A light gun's position is 0 to
+  65535 across the picture.
+- **Settings keep Mednafen's own names** ("ss.cart", "ss.input.port1"). Their
+  types, defaults, limits and choices are read from Mednafen; what a user
+  reads about each is written in `waterbox/machines.json`.
+- **The Saturn's BIOS is asked for by region of the disc.** The core answers
+  before the machine is built (patch 0005). The two files are mounted under
+  names of this core's own, because Mednafen refuses a file named like one
+  known BIOS that holds another.
+- **Not done yet**: memory for RAM Watch, lag frames, save data, changing
+  discs, CHD images, the Saturn's ST-V arcade board.

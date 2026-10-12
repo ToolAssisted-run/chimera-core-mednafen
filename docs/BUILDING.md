@@ -81,3 +81,32 @@ has three more, each of which must leave the printed lines unchanged:
 moved to a new sandbox half way) and `--rewind` (a state kept half way and
 loaded again at three quarters; the frames after the load repeat those after
 the save).
+
+## The controls and the settings
+
+The package's controls and settings are generated, not written:
+
+```sh
+build/meson-native/run-native --describe > /tmp/describe.json
+waterbox/gen-config.py /tmp/describe.json
+```
+
+`--describe` prints Mednafen's own tables for the four systems: every port,
+every device a port takes, every input of each device, every setting.
+`waterbox/machines.json` holds what is written by hand: the names Chimera
+shows, which port is which player, and the settings a project may set with
+their descriptions. `gen-config.py` writes `waterbox/panel.inc` (compiled
+into the core), `waterbox/waterbox.config` and
+`waterbox/default_keybinds.json`, and stops when `machines.json` names
+something Mednafen does not have. Run it again, and rebuild, after changing
+`machines.json` or the Mednafen version.
+
+## The package
+
+```sh
+waterbox/build-package.sh -r <chimera checkout>
+```
+
+builds the sandbox core and writes `build/Cores/mednafen.chimeraCore` in
+that checkout. `tests/make-project.py` writes a project for a game, which
+Chimera's `chimera-run --project` then plays.

@@ -17,6 +17,7 @@
 
 extern int Init(void);
 extern const char *SuggestSettings(void);
+extern const char *DebugDescribeSystems(void);
 extern const char *GetLoadError(void);
 extern void SetButton(int32_t index, int32_t state);
 extern int IsButtonActive(int32_t index);
@@ -64,8 +65,14 @@ int main(int argc, char **argv)
 {
 	if (argc < 2)
 	{
-		fprintf(stderr, "usage: run-native <workdir> [options]\n");
+		fprintf(stderr, "usage: run-native <workdir> [options]\n       run-native --describe\n");
 		return 2;
+	}
+	/* Mednafen's description of every system, for waterbox/gen-config.py */
+	if (!strcmp(argv[1], "--describe"))
+	{
+		fputs(DebugDescribeSystems(), stdout);
+		return 0;
 	}
 	if (chdir(argv[1]) != 0)
 	{

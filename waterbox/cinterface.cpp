@@ -19,6 +19,8 @@
 #include <mednafen/cdrom/CDInterface_ST.h>
 #include <mednafen/cdrom/CDAccess.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -37,6 +39,12 @@ using namespace Mednafen;
 
 // the four systems' descriptions, as their own source files define them
 extern const Mednafen::MDFNGI EmulatedSS, EmulatedVB, EmulatedPCFX, EmulatedLynx;
+
+// what a Saturn disc says of the console it wants (patches/0005)
+namespace MDFN_IEN_SS
+{
+void SS_ChimeraDiscFacts(std::vector<Mednafen::CDInterface *> *discs, int *japan, const char **cart_rom_setting);
+}
 
 namespace
 {
@@ -75,15 +83,53 @@ int g_width, g_height;
 bool g_render = true;
 
 // ---- the ports ---------------------------------------------------------------
-// A control of the panel: one input of one device in one port, as Mednafen's
-// tables describe it. The port's bytes are the block Mednafen reads.
+// panel.inc is the package's list of controls, written by gen-config.py from
+// Mednafen's own tables: for each system, every button and axis, and for each
+// the input of each device it stands for ("P1 A" is the A of whichever pad is
+// in port 1). A control is live when its port is connected and the device
+// plugged into it has such an input; Chimera shows the live ones.
+struct panel_row
+{
+	const char *machine;
+	char kind;                    // 'B' a button, 'A' an axis
+	int index;                    // in the machine's list of that kind
+	int port;
+	const char *device;           // Mednafen's short name of the device
+	int input;                    // in the device's table
+	const char *sname;            // Mednafen's name of the input, to check the table by
+	char mode;                    // how a value is written: see write_value
+	const char *name;
+	const char *label;            // this device's own words for the control
+};
+const panel_row kPanel[] = {
+#define PANEL_ROW(machine, kind, index, port, device, input, sname, mode, name, label) { machine, kind, index, port, device, input, sname, mode, name, label },
+#define PANEL_TAPS(machine, rule, first, second, ports)
+#include "panel.inc"
+#undef PANEL_ROW
+#undef PANEL_TAPS
+};
+struct tap_rule
+{
+	const char *machine, *rule, *setting[2];
+	int portsOnTap;
+};
+const tap_rule kTaps[] = {
+#define PANEL_ROW(machine, kind, index, port, device, input, sname, mode, name, label)
+#define PANEL_TAPS(machine, rule, first, second, ports) { machine, rule, { first, second }, ports },
+#include "panel.inc"
+#undef PANEL_ROW
+#undef PANEL_TAPS
+};
+
 struct control
 {
-	std::string name;
-	int port;
-	const InputDeviceInputInfoStruct *input;
+	const char *name = "";
+	int port = 0;
+	std::vector<const panel_row *> rows;
+	const panel_row *live = nullptr;                    // the row of what is plugged in
+	const InputDeviceInputInfoStruct *input = nullptr;  // and its input
 };
-std::vector<std::vector<uint8_t>> g_portData;     // one block a port
+std::vector<std::vector<uint8_t>> g_portData;     // one block a port: what Mednafen reads
 std::vector<const InputDeviceInfoStruct *> g_plugged;
 std::vector<control> g_buttons, g_axes;
 
@@ -98,19 +144,90 @@ void set_bits(std::vector<uint8_t> &data, unsigned offset, unsigned size, uint32
 	}
 }
 
-// what is plugged into a port: the project's choice ("port1" = a device's
-// short name), or the first device Mednafen lists that is not "none"
+bool setting_on(const char *name)
+{
+	char val[16];
+	if (wbx_setting_str(name, val, sizeof val) <= 0) return false;
+	return val[0] == 't' || val[0] == 'T' || (val[0] >= '1' && val[0] <= '9');
+}
+
+// Is this port wired to the console? A multitap adds ports, and each system
+// numbers them its own way:
+//   "sequential" (Saturn, ss/smpc.cpp MapPorts): the ports are handed out in
+//     order, six to a socket with a multitap and one to a socket without;
+//   "pcfx" (pcfx/input.cpp TapMap): ports 1 and 2 are the sockets, a multitap
+//     in the first adds ports 3 to 5 and one in the second ports 6 to 8.
+// A port that belongs to no player (the console's own switches) always is.
+bool port_connected(unsigned port)
+{
+	for (auto const &taps : kTaps)
+	{
+		if (g_machine != taps.machine) continue;
+		bool const first = setting_on(taps.setting[0]), second = setting_on(taps.setting[1]);
+		if (!strcmp(taps.rule, "sequential"))
+		{
+			unsigned const players = (first ? taps.portsOnTap : 1) + (second ? taps.portsOnTap : 1);
+			unsigned const playerPorts = 2 * taps.portsOnTap;
+			return port >= playerPorts || port < players;
+		}
+		if (!strcmp(taps.rule, "pcfx"))
+			return port < 2 || (port < 5 ? first : port < 8 ? second : true);
+	}
+	return true;
+}
+
+// what is plugged into a port: the project's choice (Mednafen's own name for
+// it, "ss.input.port1" = a device's short name), or Mednafen's default
 const InputDeviceInfoStruct *device_for(unsigned port)
 {
 	auto const &info = g_system->PortInfo[port];
-	char key[32], val[64];
-	snprintf(key, sizeof key, "port%u", port + 1);
-	if (wbx_setting_str(key, val, sizeof val) > 0)
-		for (auto const &device : info.DeviceInfo)
-			if (!strcmp(device.ShortName, val)) return &device;
+	char key[96], val[64];
+	snprintf(key, sizeof key, "%s.input.%s", g_system->shortname, info.ShortName);
+	const char *want = wbx_setting_str(key, val, sizeof val) > 0 ? val : info.DefaultDevice;
 	for (auto const &device : info.DeviceInfo)
-		if (strcmp(device.ShortName, "none")) return &device;
+		if (want && !strcmp(device.ShortName, want)) return &device;
 	return info.DeviceInfo.empty() ? nullptr : &info.DeviceInfo[0];
+}
+
+// Chimera's value of a control, written into the port's block as Mednafen
+// reads it
+void write_value(control const &c, int32_t value)
+{
+	if (!c.live) return;
+	std::vector<uint8_t> &data = g_portData[c.port];
+	const InputDeviceInputInfoStruct &in = *c.input;
+	switch (c.live->mode)
+	{
+	case 'b':   // a button: one bit
+		set_bits(data, in.BitOffset, 1, value ? 1 : 0);
+		break;
+	case 's':   // a two-way switch, shown as a button: held is the second position
+		set_bits(data, in.BitOffset, in.BitSize, value ? 1 : 0);
+		break;
+	case 'n':   // a switch of several positions: the position's number
+		set_bits(data, in.BitOffset, in.BitSize, uint32_t(std::min(std::max(value, 0), int32_t(in.Switch.NumPos) - 1)));
+		break;
+	case 'x':   // a stick: 0 at rest for Chimera, 32768 for Mednafen
+		set_bits(data, in.BitOffset, 16, uint32_t(std::min(std::max(value + 32768, 0), 65535)));
+		break;
+	case 'u':   // a trigger: 0 released, 65535 fully pressed
+		set_bits(data, in.BitOffset, 16, uint32_t(std::min(std::max(value, 0), 65535)));
+		break;
+	case 'r':   // a mouse: the movement this frame
+		set_bits(data, in.BitOffset, 16, uint32_t(uint16_t(int16_t(std::min(std::max(value, -32768), 32767)))));
+		break;
+	case 'p':   // a pointer: a fraction of the picture (0..65535), turned into
+	case 'q':   // the system's own units as Mednafen's program does
+	{
+		double const fraction = std::min(std::max(value, 0), 65535) / 65536.0;
+		double const scaled = c.live->mode == 'p'
+			? fraction * g_system->mouse_scale_x + g_system->mouse_offs_x
+			: fraction * g_system->mouse_scale_y + g_system->mouse_offs_y;
+		int32_t const units = int32_t(floor(0.5 + scaled));
+		set_bits(data, in.BitOffset, 16, uint32_t(uint16_t(int16_t(std::min(std::max(units, -32768), 32767)))));
+		break;
+	}
+	}
 }
 
 void build_panel()
@@ -125,33 +242,31 @@ void build_panel()
 		g_plugged.push_back(device);
 		g_portData.emplace_back(device ? std::max<uint32>(device->IDII.InputByteSize, 1) : 1, 0);
 		if (!device) continue;
-		std::string const prefix = g_system->PortInfo.size() > 1 || true ? "P" + std::to_string(port + 1) + " " : "";
+		// every switch at the position it rests in, every stick at its centre
 		for (auto const &input : device->IDII)
 		{
-			if (!input.Name) continue;
-			switch (input.Type)
-			{
-			case IDIT_BUTTON:
-			case IDIT_BUTTON_CAN_RAPID:
-			case IDIT_RESET_BUTTON:
-				g_buttons.push_back({ prefix + input.Name, int(port), &input });
-				break;
-			case IDIT_AXIS:
-			case IDIT_AXIS_REL:
-			case IDIT_BUTTON_ANALOG:
-			case IDIT_POINTER_X:
-			case IDIT_POINTER_Y:
-				g_axes.push_back({ prefix + input.Name, int(port), &input });
-				// an axis rests at its centre
-				if (input.Type == IDIT_AXIS) set_bits(g_portData[port], input.BitOffset, 16, 32768);
-				break;
-			case IDIT_SWITCH:
-				set_bits(g_portData[port], input.BitOffset, input.BitSize, input.Switch.DefPos);
-				break;
-			default:
-				break;
-			}
+			if (input.Type == IDIT_SWITCH) set_bits(g_portData[port], input.BitOffset, input.BitSize, input.Switch.DefPos);
+			if (input.Type == IDIT_AXIS) set_bits(g_portData[port], input.BitOffset, 16, 32768);
 		}
+	}
+	for (auto const &row : kPanel)
+	{
+		if (g_machine != row.machine) continue;
+		std::vector<control> &list = row.kind == 'B' ? g_buttons : g_axes;
+		if (size_t(row.index) >= list.size()) list.resize(row.index + 1);
+		control &c = list[row.index];
+		c.name = row.name;
+		c.port = row.port;
+		c.rows.push_back(&row);
+		const InputDeviceInfoStruct *device = size_t(row.port) < g_plugged.size() ? g_plugged[row.port] : nullptr;
+		if (!device || strcmp(device->ShortName, row.device) || !port_connected(row.port)) continue;
+		// the table was made from this very Mednafen: a row that does not find
+		// its input means panel.inc is stale
+		if (size_t(row.input) >= device->IDII.size() || !device->IDII[row.input].SettingName
+			|| strcmp(device->IDII[row.input].SettingName, row.sname))
+			throw MDFN_Error(0, "the control table (panel.inc) is not this Mednafen's: %s of %s", row.sname, row.device);
+		c.live = &row;
+		c.input = &device->IDII[row.input];
 	}
 	// the blocks do not move after this: Mednafen keeps the pointers
 	for (unsigned port = 0; port < g_system->PortInfo.size(); port++)
@@ -185,15 +300,22 @@ std::string lone_rom()
 
 std::vector<CDInterface *> g_discs;
 
-void load_discs(std::vector<std::string> const &images)
+// Mednafen's own reader of disc images, on the emulation thread: a sector is
+// read from the image's files when the machine asks for it. Opened once: the
+// question of which firmware a disc needs is asked before the machine is built.
+void open_discs(std::vector<std::string> const &images)
 {
+	if (!g_discs.empty()) return;
 	for (std::string const &image : images)
 	{
-		// Mednafen's own reader of disc images, on the emulation thread: a
-		// sector is read from the image's files when the machine asks for it
 		std::unique_ptr<CDAccess> access(CDAccess_Open(&NVFS, image, false));
 		g_discs.push_back(new CDInterface_ST(std::move(access)));
 	}
+}
+
+void load_discs(std::vector<std::string> const &images)
+{
+	open_discs(images);
 	g_system->LoadCD(&g_discs);
 
 	// what Mednafen's own program does next: say what the drive is, and put
@@ -269,6 +391,241 @@ void take_picture()
 	}
 }
 
+// ---- the description the package is generated from -------------------------
+// Every system's ports, devices, inputs and settings as Mednafen's tables
+// have them, as JSON. waterbox/gen-config.py turns it into the package's
+// declarations, so nothing about a controller or a setting is typed by hand.
+std::string json_text(const char *text)
+{
+	std::string out = "\"";
+	for (const char *c = text ? text : ""; *c; c++)
+	{
+		if (*c == '"' || *c == '\\') { out += '\\'; out += *c; }
+		else if (*c == '\n') out += "\\n";
+		else if (*c == '\t') out += ' ';
+		else if ((unsigned char)*c >= 0x20) out += *c;
+	}
+	return out + "\"";
+}
+
+const char *input_type_name(InputDeviceInputType t)
+{
+	switch (t)
+	{
+	case IDIT_BUTTON: return "button";
+	case IDIT_BUTTON_CAN_RAPID: return "button";
+	case IDIT_RESET_BUTTON: return "reset";
+	case IDIT_SWITCH: return "switch";
+	case IDIT_STATUS: return "status";
+	case IDIT_AXIS: return "axis";
+	case IDIT_AXIS_REL: return "relative";
+	case IDIT_POINTER_X: return "pointerx";
+	case IDIT_POINTER_Y: return "pointery";
+	case IDIT_BUTTON_ANALOG: return "analogbutton";
+	case IDIT_RUMBLE: return "rumble";
+	case IDIT_BYTE_SPECIAL: return "bytes";
+	default: return "padding";
+	}
+}
+
+const char *setting_type_name(MDFNSettingType t)
+{
+	switch (t)
+	{
+	case MDFNST_INT: return "int";
+	case MDFNST_UINT: return "uint";
+	case MDFNST_BOOL: return "bool";
+	case MDFNST_FLOAT: return "float";
+	case MDFNST_STRING: return "string";
+	case MDFNST_ENUM: return "enum";
+	case MDFNST_MULTI_ENUM: return "multienum";
+	default: return "alias";
+	}
+}
+
+std::string g_description;
+const char *describe_systems()
+{
+	std::string &o = g_description;
+	o = "[";
+	for (auto const &entry : kSystems)
+	{
+		const MDFNGI &gi = *entry.gi;
+		if (&entry != kSystems) o += ",";
+		o += "\n{\"machine\":" + json_text(entry.machine) + ",\"shortname\":" + json_text(gi.shortname)
+			+ ",\"fullname\":" + json_text(gi.fullname) + ",\"disc\":" + (entry.disc ? "true" : "false")
+			+ ",\"fps\":" + std::to_string(gi.fps) + ",\"fb\":[" + std::to_string(gi.fb_width) + "," + std::to_string(gi.fb_height)
+			+ "],\"nominal\":[" + std::to_string(gi.nominal_width) + "," + std::to_string(gi.nominal_height) + "],\"extensions\":[";
+		for (const FileExtensionSpecStruct *e = gi.FileExtensions; e && e->extension; e++)
+			o += std::string(e == gi.FileExtensions ? "" : ",") + json_text(e->extension);
+		o += "],\n \"ports\":[";
+		for (size_t p = 0; p < gi.PortInfo.size(); p++)
+		{
+			auto const &port = gi.PortInfo[p];
+			o += std::string(p ? "," : "") + "\n  {\"short\":" + json_text(port.ShortName) + ",\"full\":" + json_text(port.FullName)
+				+ ",\"default\":" + json_text(port.DefaultDevice) + ",\"devices\":[";
+			for (size_t d = 0; d < port.DeviceInfo.size(); d++)
+			{
+				auto const &device = port.DeviceInfo[d];
+				o += std::string(d ? "," : "") + "\n   {\"short\":" + json_text(device.ShortName) + ",\"full\":" + json_text(device.FullName)
+					+ ",\"description\":" + json_text(device.Description) + ",\"bytes\":" + std::to_string(device.IDII.InputByteSize) + ",\"inputs\":[";
+				bool first = true;
+				for (size_t n = 0; n < device.IDII.size(); n++)
+				{
+					auto const &input = device.IDII[n];
+					if (!input.Name && input.Type != IDIT_SWITCH) continue;
+					o += std::string(first ? "" : ",") + "\n    {\"index\":" + std::to_string(n) + ",\"sname\":" + json_text(input.SettingName) + ",\"name\":" + json_text(input.Name)
+						+ ",\"type\":\"" + input_type_name(input.Type) + "\",\"offset\":" + std::to_string(input.BitOffset)
+						+ ",\"bits\":" + std::to_string(input.BitSize) + ",\"order\":" + std::to_string(input.ConfigOrder);
+					if (input.Type == IDIT_AXIS || input.Type == IDIT_AXIS_REL)
+						o += ",\"negative\":" + json_text(input.Axis.name_dir[0]) + ",\"positive\":" + json_text(input.Axis.name_dir[1]);
+					if (input.Type == IDIT_SWITCH)
+					{
+						o += ",\"default\":" + std::to_string(input.Switch.DefPos) + ",\"positions\":[";
+						for (uint32 i = 0; i < input.Switch.NumPos; i++)
+							o += std::string(i ? "," : "") + "{\"sname\":" + json_text(input.Switch.Pos[i].SettingName) + ",\"name\":" + json_text(input.Switch.Pos[i].Name)
+								+ ",\"description\":" + json_text(input.Switch.Pos[i].Description) + "}";
+						o += "]";
+					}
+					o += "}";
+					first = false;
+				}
+				o += "]}";
+			}
+			o += "]}";
+		}
+		o += "],\n \"settings\":[";
+		bool first = true;
+		for (const MDFNSetting *st = gi.Settings; st && st->name; st++)
+		{
+			o += std::string(first ? "" : ",") + "\n  {\"name\":" + json_text(st->name) + ",\"flags\":" + std::to_string(st->flags)
+				+ ",\"description\":" + json_text(st->description) + ",\"extra\":" + json_text(st->description_extra)
+				+ ",\"type\":\"" + setting_type_name(st->type) + "\",\"default\":" + json_text(st->default_value)
+				+ ",\"minimum\":" + json_text(st->minimum) + ",\"maximum\":" + json_text(st->maximum) + ",\"options\":[";
+			for (const MDFNSetting_EnumList *e = st->enum_list; e && e->string; e++)
+				o += std::string(e == st->enum_list ? "" : ",") + "{\"value\":" + json_text(e->string) + ",\"number\":" + std::to_string(e->number)
+					+ ",\"description\":" + json_text(e->description) + ",\"extra\":" + json_text(e->description_extra) + "}";
+			o += "]}";
+			first = false;
+		}
+		o += "]}";
+	}
+	o += "\n]\n";
+	return o.c_str();
+}
+
+// The firmware files, by the names they are mounted under. The Saturn's two
+// BIOS files are asked for under names of this core's own, not Mednafen's
+// defaults ("sega_101.bin"): Mednafen refuses a file whose name is that of one
+// known BIOS and whose contents are another's, and a project may hold any of
+// the BIOS versions of a region.
+const char *const kFirmwareNames[][2] = {
+	{ "ss.bios_jp", "saturn_jp.bin" },
+	{ "ss.bios_na_eu", "saturn_na_eu.bin" },
+};
+
+// the machine the project is for, and the settings it sets
+bool choose_machine()
+{
+	char val[512];
+	g_machine = wbx_setting_str("machine", val, sizeof val) > 0 ? val : "saturn";
+	g_entry = nullptr;
+	for (auto const &entry : kSystems)
+		if (g_machine == entry.machine) g_entry = &entry;
+	if (!g_entry)
+	{
+		snprintf(g_loadError, sizeof g_loadError, "unknown machine \"%s\"", g_machine.c_str());
+		return false;
+	}
+	if (!g_system)
+	{
+		// this run's own copy: a system writes into its description as it loads
+		g_system = new MDFNGI(*g_entry->gi);
+		MDFNGameInfo = g_system;
+	}
+	// Mednafen's settings the project sets, by Mednafen's own names
+	g_settings.clear();
+	for (const MDFNSetting *s = g_system->Settings; s && s->name; s++)
+		if (wbx_setting_str(s->name, val, sizeof val) > 0)
+		{
+			// a project writes a switch as true or false, Mednafen as 1 or 0
+			if (s->type == MDFNST_BOOL) g_settings[s->name] = (val[0] == 't' || val[0] == 'T' || val[0] == '1') ? "1" : "0";
+			else g_settings[s->name] = val;
+		}
+	for (auto const &name : kFirmwareNames) g_settings[name[0]] = name[1];
+	// the machine's clock starts at a time the project sets, never the host's
+	if (wbx_setting_str("initialTime", val, sizeof val) > 0) g_time = strtoll(val, nullptr, 10);
+	return true;
+}
+
+std::vector<std::string> game_files()
+{
+	std::vector<std::string> files = slot_files(g_entry->disc ? "disc" : "cart");
+	if (files.empty() && !lone_rom().empty()) files.push_back(lone_rom());
+	return files;
+}
+
+std::string g_suggestion;
+
+std::string firmware_entry(const char *id, const char *display, const char *description, const char *name, std::string const &when)
+{
+	return std::string("{\"id\":") + json_text(id) + ",\"display\":" + json_text(display) + ",\"description\":" + json_text(description)
+		+ ",\"name\":" + json_text(name) + ",\"requiredWhen\":" + when + "}";
+}
+
+// The firmware a Saturn disc needs. Which BIOS depends on the disc's region
+// and on two settings that can overrule it, and the wizard asks before the
+// settings are final, so each file is given with the settings it is needed
+// under (ss.cpp LoadCD: the region is the disc's when "ss.region_autodetect"
+// is on and the disc names one, and "ss.region_default" otherwise).
+std::string saturn_firmware(std::string &note)
+{
+	int japan = -1;
+	const char *cartRom = nullptr;
+	MDFN_IEN_SS::SS_ChimeraDiscFacts(&g_discs, &japan, &cartRom);
+
+	const std::string fromDisc = "{\"setting\":\"ss.region_autodetect\",\"is\":true}";
+	const std::string notFromDisc = "{\"setting\":\"ss.region_autodetect\",\"is\":false}";
+	const std::string setJapan = "{\"setting\":\"ss.region_default\",\"in\":[\"jp\",\"tw\"]}";
+	const std::string setOther = "{\"setting\":\"ss.region_default\",\"in\":[\"na\",\"eu\",\"kr\",\"as\",\"br\",\"la\"]}";
+	std::string whenJapan, whenOther;
+	if (japan == 1)
+	{
+		whenJapan = "{\"any\":[" + fromDisc + "," + setJapan + "]}";
+		whenOther = "{\"all\":[" + notFromDisc + "," + setOther + "]}";
+		note = "This disc is for a Japanese or Taiwanese console, which starts with the Japanese BIOS.";
+	}
+	else if (japan == 0)
+	{
+		whenJapan = "{\"all\":[" + notFromDisc + "," + setJapan + "]}";
+		whenOther = "{\"any\":[" + fromDisc + "," + setOther + "]}";
+		note = "This disc is for a console outside Japan and Taiwan, which starts with the North American and European BIOS.";
+	}
+	else
+	{
+		whenJapan = setJapan;
+		whenOther = setOther;
+		note = "This disc does not say which region it is for, so the Region setting decides which BIOS the console starts with.";
+	}
+	std::string out = "["
+		+ firmware_entry("saturn_jp.bin", "Saturn BIOS (Japan)",
+			"The BIOS of a Japanese Saturn (512 KB). The console starts from it. Version 1.01 is usually named sega_101.bin; versions 1.00 and 1.003 work as well. It is Sega's and you have to supply it.",
+			"sega_101.bin", whenJapan)
+		+ "," + firmware_entry("saturn_na_eu.bin", "Saturn BIOS (North America and Europe)",
+			"The BIOS of a North American or European Saturn (512 KB). The console starts from it. It is usually named mpr-17933.bin. It is Sega's and you have to supply it.",
+			"mpr-17933.bin", whenOther);
+	if (cartRom)
+	{
+		// the game is known to need the ROM cartridge it was sold with
+		std::string const file = MDFN_GetSettingS(cartRom);
+		out += "," + firmware_entry(file.c_str(), "Game cartridge ROM",
+			"This game was sold with a ROM cartridge and reads part of itself from it. The file is the cartridge's ROM, under the name MAME gives it. It is needed while the Cartridge setting is 'auto'.",
+			file.c_str(), "{\"setting\":\"ss.cart\",\"is\":\"auto\"}");
+		note += " The game needs its ROM cartridge (" + file + ").";
+	}
+	return out + "]";
+}
+
 } // namespace
 
 // ---- for mdfn-interfaces.cpp -------------------------------------------------
@@ -288,32 +645,41 @@ extern "C" {
 
 ECL_EXPORT const char *GetLoadError(void) { return g_loadError; }
 
+// What the New Project window and a load are told of the game before the
+// machine is built: the firmware it needs. Nothing is run.
+ECL_EXPORT const char *SuggestSettings(void)
+{
+	g_loadError[0] = '\0';
+	std::string note, firmware = "[]";
+	try
+	{
+		if (!choose_machine()) note = g_loadError;
+		else if (g_machine == "saturn")
+		{
+			std::vector<std::string> const files = game_files();
+			if (files.empty()) note = "No disc was given.";
+			else
+			{
+				open_discs(files);
+				firmware = saturn_firmware(note);
+			}
+		}
+	}
+	catch (std::exception const &e)
+	{
+		note = e.what();
+	}
+	g_suggestion = "{\"values\":{},\"note\":" + json_text(note.c_str()) + ",\"firmware\":" + firmware + "}";
+	return g_suggestion.c_str();
+}
+
 ECL_EXPORT int Init(void)
 {
 	g_loadError[0] = '\0';
-	char val[512];
-	g_machine = wbx_setting_str("machine", val, sizeof val) > 0 ? val : "saturn";
-	g_entry = nullptr;
-	for (auto const &entry : kSystems)
-		if (g_machine == entry.machine) g_entry = &entry;
-	if (!g_entry)
-	{
-		snprintf(g_loadError, sizeof g_loadError, "unknown machine \"%s\"", g_machine.c_str());
-		return 0;
-	}
+	if (!choose_machine()) return 0;
 	try
 	{
-		// this run's own copy: a system writes into its description as it loads
-		g_system = new MDFNGI(*g_entry->gi);
-		MDFNGameInfo = g_system;
-
-		// Mednafen's settings the project sets, by Mednafen's own names
-		for (const MDFNSetting *s = g_system->Settings; s && s->name; s++)
-			if (wbx_setting_str(s->name, val, sizeof val) > 0)
-				g_settings[s->name] = val;
-
-		std::vector<std::string> files = slot_files(g_entry->disc ? "disc" : "cart");
-		if (files.empty() && !lone_rom().empty()) files.push_back(lone_rom());
+		std::vector<std::string> const files = game_files();
 		if (files.empty())
 		{
 			snprintf(g_loadError, sizeof g_loadError, "no %s was given", g_entry->disc ? "disc" : "game");
@@ -334,25 +700,22 @@ ECL_EXPORT int Init(void)
 }
 
 ECL_EXPORT int GetButtonCount(void) { return int(g_buttons.size()); }
-ECL_EXPORT const char *GetButtonName(int32_t i) { return i >= 0 && i < int(g_buttons.size()) ? g_buttons[i].name.c_str() : ""; }
-ECL_EXPORT int IsButtonActive(int32_t i) { return i >= 0 && i < int(g_buttons.size()); }
+ECL_EXPORT const char *GetButtonName(int32_t i) { return i >= 0 && i < int(g_buttons.size()) ? g_buttons[i].name : ""; }
+ECL_EXPORT int IsButtonActive(int32_t i) { return i >= 0 && i < int(g_buttons.size()) && g_buttons[i].live; }
+// this device's own words for the control ("L Gear Shift" for a wheel's Up)
+ECL_EXPORT const char *GetButtonLabel(int32_t i) { return i >= 0 && i < int(g_buttons.size()) && g_buttons[i].live ? g_buttons[i].live->label : ""; }
 ECL_EXPORT void SetButton(int32_t i, int32_t state)
 {
-	if (i < 0 || i >= int(g_buttons.size())) return;
-	control const &c = g_buttons[i];
-	set_bits(g_portData[c.port], c.input->BitOffset, 1, state ? 1 : 0);
+	if (i >= 0 && i < int(g_buttons.size())) write_value(g_buttons[i], state);
 }
 
 ECL_EXPORT int GetAxisCount(void) { return int(g_axes.size()); }
-ECL_EXPORT const char *GetAxisName(int32_t i) { return i >= 0 && i < int(g_axes.size()) ? g_axes[i].name.c_str() : ""; }
-ECL_EXPORT int IsAxisActive(int32_t i) { return i >= 0 && i < int(g_axes.size()); }
+ECL_EXPORT const char *GetAxisName(int32_t i) { return i >= 0 && i < int(g_axes.size()) ? g_axes[i].name : ""; }
+ECL_EXPORT int IsAxisActive(int32_t i) { return i >= 0 && i < int(g_axes.size()) && g_axes[i].live; }
+ECL_EXPORT const char *GetAxisLabel(int32_t i) { return i >= 0 && i < int(g_axes.size()) && g_axes[i].live ? g_axes[i].live->label : ""; }
 ECL_EXPORT void SetAxis(int32_t i, int32_t value)
 {
-	if (i < 0 || i >= int(g_axes.size())) return;
-	control const &c = g_axes[i];
-	// an axis is 0 at rest for Chimera and 32768 at rest for Mednafen
-	uint32_t const raw = c.input->Type == IDIT_AXIS ? uint32_t(std::min(std::max(value + 32768, 0), 65535)) : uint32_t(value) & 0xffff;
-	set_bits(g_portData[c.port], c.input->BitOffset, 16, raw);
+	if (i >= 0 && i < int(g_axes.size())) write_value(g_axes[i], value);
 }
 
 ECL_EXPORT void FrameAdvance(uint64_t)
@@ -384,7 +747,9 @@ ECL_EXPORT int GetAudioSampleCount(void) { return g_audioFrames; }
 ECL_EXPORT int GetVsyncNumerator(void) { return g_system ? int((uint64_t(g_system->fps) * 1000) >> 24) : 60000; }
 ECL_EXPORT int GetVsyncDenominator(void) { return 1000; }
 
-ECL_EXPORT const char *SuggestSettings(void) { return ""; }
+
+// for the package's generator (run-native --describe): not called by Chimera
+ECL_EXPORT const char *DebugDescribeSystems(void) { return describe_systems(); }
 ECL_EXPORT const char *DescribeDips(void) { return ""; }
 
 ECL_EXPORT int32_t GetSaveDataFileCount(void) { return 0; }

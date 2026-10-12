@@ -1,0 +1,47 @@
+The Saturn says which firmware a disc needs before anything is loaded.
+
+Chimera asks for a project's firmware before the machine is built, and which
+BIOS a Saturn starts with depends on the disc's region. Mednafen works that
+out inside its load, from functions private to ss.cpp. This adds one function
+beside them that does the same reading of the disc and of the game database
+and loads nothing: it says whether the disc is for a region with the
+Japanese BIOS, and names the ROM cartridge of the two games sold with one.
+
+--- a/src/ss/ss.cpp
++++ b/src/ss/ss.cpp
+@@ -1855,6 +1855,35 @@
+  }
+ }
+ 
++#if defined(CHIMERA_CORE)
++// chimera: what a disc says of the console it wants, worked out as LoadCD and
++// InitCommon above do and with nothing loaded: which BIOS its region uses,
++// and the setting that names the ROM of a cartridge the game is known to
++// need. Chimera asks for a project's firmware before the machine is built,
++// so it has to know this first. The project's settings are not read here:
++// "japan" is 1 for a disc of a region that uses the Japanese BIOS, 0 for one
++// that uses the other, and -1 when the disc does not say.
++MDFN_COLD void SS_ChimeraDiscFacts(std::vector<CDInterface*>* CDInterfaces, int* japan, const char** cart_rom_setting)
++{
++ uint8 id[16], fd_id[16];
++ char sgid[16 + 1] = { 0 };
++ char sgname[0x70 + 1] = { 0 };
++ char sgarea[0x10 + 1] = { 0 };
++ unsigned region = ~0U;
++ int cart_type = -1;
++ unsigned cpucache_emumode = CPUCACHE_EMUMODE_DATA;
++
++ cdifs = CDInterfaces;
++ CalcGameID(id, fd_id, sgid, sgname, sgarea);
++ DetectRegion(&region);
++ DB_Lookup(nullptr, sgid, sgname, sgarea, fd_id, &region, &cart_type, &cpucache_emumode);
++ cdifs = NULL;
++
++ *japan = (region == ~0U) ? -1 : (region == SMPC_AREA_JP || region == SMPC_AREA_ASIA_NTSC);
++ *cart_rom_setting = (cart_type == CART_KOF95) ? "ss.cart.kof95_path" : (cart_type == CART_ULTRAMAN) ? "ss.cart.ultraman_path" : nullptr;
++}
++#endif
++
+ static MDFN_COLD void CloseGame(void)
+ {
+ #ifdef MDFN_ENABLE_DEV_BUILD
