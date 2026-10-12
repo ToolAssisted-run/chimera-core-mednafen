@@ -1,0 +1,25 @@
+Discs are read without a read-ahead thread.
+
+Mednafen has two disc readers: one with a thread that reads sectors ahead of
+the game, one that reads a sector when it is asked for. The second is always
+used here, for the same reason as patch 0001.
+
+--- a/src/cdrom/CDInterface.cpp
++++ b/src/cdrom/CDInterface.cpp
+@@ -243,10 +243,16 @@
+  //
+  std::unique_ptr<CDAccess> cda(CDAccess_Open(vfs, path, image_memcache));
+ 
++#if defined(CHIMERA_CORE)
++ // chimera: always the reader that reads on the caller's thread. The other
++ // one reads ahead on a thread of its own, and a Chimera core is one thread.
++ return new CDInterface_ST(std::move(cda));
++#else
+  if(image_memcache)
+   return new CDInterface_ST(std::move(cda));
+  else
+   return new CDInterface_MT(std::move(cda), affinity);
++#endif
+ }
+ 
+ }

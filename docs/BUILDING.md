@@ -1,0 +1,83 @@
+# Building
+
+This core is built on Linux. The result, `core.wbx`, is one file that runs in
+Chimera on Linux and on Windows.
+
+## What is needed
+
+- GCC 13 or newer, meson, ninja, curl, patch, git.
+- A checkout of Chimera with miniBox built, for the sandbox toolchain
+  (Chimera's `AGENTS.md`, "Build"). Below, `<miniBox>` is its
+  `extern/chimera-common-minibox` folder.
+
+## Mednafen's source
+
+Mednafen is published as release archives only; it has no public repository.
+So the version this core builds is an archive's name and its SHA-256, both
+written in `waterbox/fetch-mednafen.sh`:
+
+```sh
+git submodule update --init extern/zlib
+waterbox/fetch-mednafen.sh
+```
+
+downloads the archive once (into `build/cache`), checks it, unpacks it into
+`extern/mednafen` and applies the patches in `patches/`. `extern/mednafen`
+is not in git. zlib is a submodule because Mednafen brings none and the
+sandbox's toolchain has none.
+
+Run the script again after changing a patch: it makes `extern/mednafen`
+again from the archive. An edit made in `extern/mednafen` by hand is lost
+then, so a change to Mednafen is kept as a patch:
+
+```sh
+mkdir /tmp/pristine && tar -xJf build/cache/mednafen-1.32.1.tar.xz -C /tmp/pristine
+# edit extern/mednafen/src/<file>, build, test; then
+( cd /tmp/pristine && ln -s mednafen a && ln -s <this checkout>/extern/mednafen b &&
+  diff -u a/src/<file> b/src/<file> ) > patches/NNNN-what-it-does.patch
+```
+
+with a few lines above the diff saying what the change is and why. Every
+change is inside `#if defined(CHIMERA_CORE)`.
+
+## What is compiled
+
+`waterbox/list-sources.sh` lists Mednafen's files this core compiles: the
+four systems (Saturn, Virtual Boy, PC-FX, Lynx), the processors and chips
+they share, the disc reader and the general files. Mednafen's own program
+(its window, its sound output, its menus, its savestates) is not compiled:
+`waterbox/cinterface.cpp` is this core's frontend and
+`waterbox/mdfn-interfaces.cpp` answers what Mednafen's files ask of the
+program. `waterbox/config/config.h` is written by hand in place of the one
+Mednafen's configure script would make.
+
+## The two flavors
+
+- `native`: for the host. `run-native` is the reference the tests compare
+  the sandbox with.
+- `guest`: for miniBox's sandbox. This is `core.wbx`, and `run-wbx` runs it.
+
+```sh
+meson setup build/meson-native -Dminibox_dir=<miniBox> && ninja -C build/meson-native
+waterbox/setup-guest.sh -m <miniBox> && ninja -C build/meson-guest
+```
+
+## Running a game by hand
+
+Put each game in a folder of its own under `tests/games-local` and the BIOS
+files in `tests/roms-local`. Both folders are ignored by git; nothing in them
+is ever committed.
+
+```sh
+tests/try.sh saturn <folder> --frames 1800 --report 300 --list-panel
+tests/try.sh -g saturn <folder> --frames 1800 --report 300     # in the sandbox
+tests/try.sh -g saturn <folder> --frames 1500 --report 50 --rewind
+```
+
+The two first print the same lines when the sandbox runs the game as the
+reference does. The run options are in `waterbox/gate-harness.h`. `run-wbx`
+has three more, each of which must leave the printed lines unchanged:
+`--rerecord` (a state saved and loaded every frame), `--session` (the state
+moved to a new sandbox half way) and `--rewind` (a state kept half way and
+loaded again at three quarters; the frames after the load repeat those after
+the save).

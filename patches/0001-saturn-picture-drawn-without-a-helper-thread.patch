@@ -1,0 +1,131 @@
+The Saturn's picture is drawn without a helper thread.
+
+Mednafen draws the Saturn's second video chip on a thread of its own, fed
+through a queue of register writes and "draw this line" orders. A core runs
+on one thread: a second one makes a run depend on how the host shares its
+processors, and the sandbox gives a core no threads to start. Under
+CHIMERA_CORE each order is carried out where it is queued, in the same
+order as before, so the picture is the same; no thread or semaphore is
+made.
+
+--- a/src/ss/vdp2_render.cpp
++++ b/src/ss/vdp2_render.cpp
+@@ -3214,6 +3214,20 @@
+ static MThreading::Sem* WakeupSem;
+ static bool DoWakeupIfNecessary;
+ 
++#if defined(CHIMERA_CORE)
++// chimera: the picture is drawn by the thread that runs the machine. Mednafen
++// hands every register write and every line to draw to a helper thread
++// through this queue, and waits for it at the end of the frame. A Chimera
++// core is one thread on one clock (the sandbox runs no second thread at the
++// same time as the first, and a savestate must hold the whole machine at a
++// frame's end), so each command is carried out at once, here, in the order
++// the queue would have delivered it: the picture is the same.
++static void RunCommand(uint16 command, uint32 arg32, uint16 arg16);
++static INLINE void WWQ(uint16 command, uint32 arg32 = 0, uint16 arg16 = 0)
++{
++ RunCommand(command, arg32, arg16);
++}
++#else
+ static INLINE void WWQ(uint16 command, uint32 arg32 = 0, uint16 arg16 = 0)
+ {
+  while(MDFN_UNLIKELY(WQ_InCount.load(std::memory_order_acquire) == WQ.size()))
+@@ -3228,7 +3242,40 @@
+  WQ_WritePos = (WQ_WritePos + 1) % WQ.size();
+  WQ_InCount.fetch_add(1, std::memory_order_release);
+ }
++#endif
++
++#if defined(CHIMERA_CORE)
++static void RunCommand(uint16 command, uint32 arg32, uint16 arg16)
++{
++ switch(command)
++ {
++  case COMMAND_WRITE8:
++	MemW<uint8>(arg32, arg16);
++	break;
++
++  case COMMAND_WRITE16:
++	MemW<uint16>(arg32, arg16);
++	break;
++
++  case COMMAND_DRAW_LINE:
++	DrawLine((uint16)arg32, arg32 >> 16, arg16);
++	DrawCounter.fetch_sub(1, std::memory_order_release);
++	break;
+ 
++  case COMMAND_RESET:
++	Reset(arg32);
++	break;
++
++  case COMMAND_SET_LEM:
++	UserLayerEnableMask = arg32;
++	break;
++
++  case COMMAND_SET_BUSYWAIT:
++  case COMMAND_EXIT:
++	break;
++ }
++}
++#else
+ static int RThreadEntry(void* data)
+ {
+  bool Running = true;
+@@ -3302,6 +3349,7 @@
+ 
+  return 0;
+ }
++#endif
+ 
+ 
+ //
+@@ -3322,10 +3370,12 @@
+  WQ_InCount.store(0, std::memory_order_release); 
+  DrawCounter.store(0, std::memory_order_release);
+ 
++#if !defined(CHIMERA_CORE)
+  WakeupSem = MThreading::Sem_Create();
+  RThread = MThreading::Thread_Create(RThreadEntry, NULL, "MDFN VDP2 Render");
+  if(affinity)
+   MThreading::Thread_SetAffinity(RThread, affinity);
++#endif
+ }
+ 
+ // Needed for ss.correct_aspect == 0
+@@ -3387,6 +3437,7 @@
+ 
+ void VDP2REND_Kill(void)
+ {
++#if !defined(CHIMERA_CORE)
+  if(RThread != NULL)
+  {
+   WWQ(COMMAND_EXIT);
+@@ -3398,6 +3449,7 @@
+   MThreading::Sem_Destroy(WakeupSem);
+   WakeupSem = NULL;
+  }
++#endif
+ }
+ 
+ void VDP2REND_StartFrame(EmulateSpecStruct* espec_arg, const bool clock28m, const int SurfInterlaceField)
+@@ -3474,6 +3526,11 @@
+   WWQ(COMMAND_DRAW_LINE, ((uint16)vdp2_line << 16) | out_line, field);
+   //
+   //
++#if defined(CHIMERA_CORE)
++  // chimera: no helper thread to wake
++  (void)wdcq;
++  (void)bwthresh;
++#else
+   if(crt_line == bwthresh)
+   {
+    WWQ(COMMAND_SET_BUSYWAIT, true);
+@@ -3490,6 +3547,7 @@
+     DoWakeupIfNecessary = false;
+    }
+   }
++#endif
+ 
+   NextOutLine = crt_line + 1;
+  }

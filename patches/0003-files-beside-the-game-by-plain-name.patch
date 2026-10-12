@@ -1,0 +1,23 @@
+A file beside the game is asked for by its plain name.
+
+A disc's description (.cue) names its track files, and Mednafen opens them as
+"./name" when the description itself was opened as "name". The sandbox
+knows a project's files by the names they were mounted under, so "./name" is
+not found there. The plain name is the same file everywhere.
+
+--- a/src/VirtualFS.cpp
++++ b/src/VirtualFS.cpp
+@@ -164,6 +164,13 @@
+ 
+  if(is_absolute_path(rel_path))
+   return rel_path;
++#if defined(CHIMERA_CORE)
++ // chimera: a file beside one that was opened by its plain name is asked for
++ // by its plain name too ("track.bin", not "./track.bin"): the sandbox knows
++ // a project's files by the names they were mounted under.
++ else if(dir_path == "." || dir_path.empty())
++  return rel_path;
++#endif
+  else
+   return dir_path + preferred_path_separator + rel_path;
+ }

@@ -1,0 +1,27 @@
+A file is told where to read from at every read.
+
+Mednafen's file object remembers where the file is and skips the seek when it
+believes the file is already in place. A savestate brings that belief back
+but not the file's own position, which the sandbox does not keep in a state:
+a game loading from its disc after a state was loaded read the wrong sectors
+(Virtua Fighter Remix, a state taken at frame 750 and loaded at 1125, went a
+different way 165 frames later). The seek is now made before every read.
+
+--- a/src/FileStream.cpp
++++ b/src/FileStream.cpp
+@@ -289,6 +289,15 @@
+  uint8* tmp_data = (uint8*)data;
+  uint64 tmp_count = count;
+ 
++#if defined(CHIMERA_CORE)
++ // chimera: say where to read from every time. This object skips the seek
++ // when it believes the file is already there; after a savestate is loaded
++ // that belief is the state's and the file is wherever the run had left it.
++ // A read is only made with the buffer used up, so "pos" is the place.
++ if(!need_real_seek)
++  lseek(fd, pos, SEEK_SET);
++#endif
++
+  while(tmp_count > 0)
+  {
+   const ssize_t rti = std::min<uint64>(SSIZE_MAX, tmp_count);
