@@ -15,12 +15,14 @@ New, and not published yet.
 - **Saturn**: two games have been run, Virtua Fighter Remix (USA) and Virtua
   Fighter 2 (Japan). Picture, sound, pads, savestates, save data, changing
   discs and lag frames work, and the sandboxed core gives the same results
-  as a plain native build on Linux.
+  as a plain native build.
 - **Virtual Boy**: it has only run a small program the tests assemble. No
   game has been tried.
 - **PC-FX**, **Lynx**: they build. Neither has run anything: no game of
   theirs was at hand.
-- Not tried on Windows yet.
+- On Windows, Chimera's headless runner plays the Virtual Boy program and a
+  1,500-frame movie of Virtua Fighter Remix and ends on the same memory and
+  the same picture as on Linux. Chimera's window has not been tried there.
 - Not there: CHD disc images (a disc is a `.cue` with its track files), the
   Saturn's ST-V arcade board, save data of the PC-FX and of Virtual Boy
   cartridges, and the Saturn's video and sound memory in RAM Watch.

@@ -100,7 +100,7 @@ each from the owner before anything can be said of them beyond "it builds".
 | 3 | Controllers and settings generated from Mednafen's descriptions; the package | Chimera's package checks; a project run by Chimera's engine | done 2026-10-12: 743 buttons and 232 axes over the four systems, 58 settings; Chimera's package checks pass (18 of 18); a project of Virtua Fighter Remix with its BIOS as firmware plays a movie in Chimera's engine and the movie's presses reach the game |
 | 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | waits for games |
 | 5 | Save data, lag frames, disc change, CHD | Tests for each | done 2026-10-12 except CHD: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data, the drive's lid and disc selector. Not done: CHD images |
-| 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | partly, 2026-10-12: the test script (`waterbox/run-gate.sh`, 30 tests) with a Virtual Boy program it assembles itself. Not done: the window test, Windows, the CI workflow, README |
+| 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | done 2026-10-12 except a run on a CI runner: the test script (32 tests), the window test (4), README, AGENTS.md, the CI workflow (never run: the repository is not published; a fresh clone builds and passes the 13 tests that need no file). Windows: Chimera's headless runner plays the Virtual Boy project and a 1,500-frame Saturn movie with presses and ends on the same RAM and the same pictures as Linux |
 | 7 | Publishing | The owner's word | not started |
 
 ## What the first two steps found
@@ -174,3 +174,15 @@ each from the owner before anything can be said of them beyond "it builds".
   disc (or the next one when the selector was not moved). With the lid up a
   Saturn leaves the game for its own CD screen. The drive's light is lit on
   a frame a sector was read.
+
+## What the window test found (2026-10-12)
+
+Chimera asked a core about a game with the game file alone: a `.cue` without
+its track files, and no settings. The Saturn's firmware answer needs to read
+the disc, so in Chimera's window no BIOS was asked for and the project did
+not start. The headless runner, which the test script uses, mounts
+everything, so the test script could not see it; the window test did.
+Chimera was changed to ask with the game's files and the settings chosen so
+far (chimera commit "a core is asked about a game with the game's files",
+made on 2026-10-12 and not on Chimera's main when this was written). This
+core's Saturn needs a Chimera with that change.
