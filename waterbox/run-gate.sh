@@ -9,7 +9,8 @@
 # Chimera's own headless runner (waterbox/build-package.sh -r <it> first).
 # SATURN_GAME=<folder> is a Saturn game for the tests that need one: a
 # folder holding a .cue and its track files (tests/games-local/vfremix when
-# not given). SATURN_BIOS_JP and SATURN_BIOS_NA_EU are the two BIOS files
+# not given). SATURN_GAME2=<folder> is any second Saturn disc, for the test
+# that changes discs (tests/games-local/vf2 when not given). SATURN_BIOS_JP and SATURN_BIOS_NA_EU are the two BIOS files
 # (tests/roms-local/sega_101.bin and mpr-17933.bin when not given).
 #
 # Needs the native build (meson setup build/meson-native ... && ninja) and
@@ -39,6 +40,7 @@ runwbx="$root/build/meson-native/run-wbx"
 core="$root/build/meson-guest/core.wbx"
 chimera_root="${CHIMERA_ROOT:-}"
 game="${SATURN_GAME:-$root/tests/games-local/vfremix}"
+game2="${SATURN_GAME2:-$root/tests/games-local/vf2}"
 bios_jp="${SATURN_BIOS_JP:-$root/tests/roms-local/sega_101.bin}"
 bios_na="${SATURN_BIOS_NA_EU:-$root/tests/roms-local/mpr-17933.bin}"
 work="$(mktemp -d)"
@@ -188,8 +190,8 @@ if [ -n "$cue" ] && [ -f "$bios_jp" ] && [ -f "$bios_na" ]; then
 	check "saturn:pad" "Start pressed twice changes the run (the idle run's digests differ)" differ "$work/ss.stream" "$work/ss-idle.stream"
 	check "saturn:sandbox" "native and sandbox print the same $(wc -l < "$work/ss.stream") digests of RAM, picture and sound, with presses" \
 		same "$work/ss.stream" "$work/ss-box.stream"
-	check "saturn:controls" "two pads of 13 buttons and Reset are live, of the 591 buttons the Saturn declares" \
-		[ "$(grep -c "^panel .* active\$" "$work/ss.out")" = 27 ]
+	check "saturn:controls" "two pads of 13 buttons, Reset and the drive's lid are live, of the 594 buttons the Saturn declares" \
+		[ "$(grep -c "^panel .* active\$" "$work/ss.out")" = 28 ]
 	# the BIOS copies the disc's header to 0x06002000; the Saturn keeps its RAM
 	# as words, so this also says the bus hands bytes out in the console's order
 	check "saturn:bus" "the bus reads \"$(tr -d '\0' < "$work/ss.header" 2> /dev/null)\" at 0x06002000, where the BIOS puts the disc's header" \
@@ -220,6 +222,35 @@ if [ -n "$cue" ] && [ -f "$bios_jp" ] && [ -f "$bios_na" ]; then
 	nat ss-ports ss-ports --frames 1 --list-panel
 	check "saturn:devices" "a 3D pad in port 1, a mouse in port 2 and a multitap in socket 2: the 3D pad's mode switch and the mouse's buttons are live, and port 7 is the last one with a pad" \
 		sh -c "grep -q \"'P1 Mode Analog' active\" '$work/ss-ports.out' && grep -q \"'P2 Mouse Left' active\" '$work/ss-ports.out' && grep -q \"'P7 A' active\" '$work/ss-ports.out' && ! grep -q \"'P8 A' active\" '$work/ss-ports.out' && ! grep -q \"'P2 A' active\" '$work/ss-ports.out'"
+
+	# the drive: the lid up for two seconds takes the game away, and the
+	# console goes to its own screen
+	index_of() { awk -v n="'$2'" 'index($0, n) && $1 == "panel" { print $2; exit }' "$1"; }
+	swap="$(index_of "$work/ss.out" "Disc Swap")"
+	nat ss-lid ss $ssrun --press "$swap:1350:120"
+	box ss-lid-box ss $ssrun --press "$swap:1350:120"
+	stream "$work/ss-lid.out" > "$work/ss-lid.stream"
+	stream "$work/ss-lid-box.out" > "$work/ss-lid-box.stream"
+	check "saturn:lid" "Disc Swap held for 120 frames changes the run from there on, the same natively and in the sandbox" \
+		sh -c "! cmp -s '$work/ss.stream' '$work/ss-lid.stream' && [ \"\$(head -26 '$work/ss.stream')\" = \"\$(head -26 '$work/ss-lid.stream')\" ] && cmp -s '$work/ss-lid.stream' '$work/ss-lid-box.stream'"
+	cue2="$(ls "$game2"/*.cue 2> /dev/null | head -1)"
+	if [ -n "$cue2" ]; then
+		# two discs: the lid alone closes on the next disc; the selector moved
+		# twice (there and back) closes it on the first again
+		folder ss2 '{"machine":"saturn"}' disc "$cue"; sat_firmware ss2
+		for f in "$game2"/*; do ln -sf "$f" "$work/ss2/$(basename "$f")"; done
+		printf '{"disc":["%s","%s"],"savedata":[]}' "$(basename "$cue")" "$(basename "$cue2")" > "$work/ss2/slots"
+		nat ss2-list ss2 --frames 1 --list-panel
+		next="$(index_of "$work/ss2-list.out" "Next Disc")"; swap2="$(index_of "$work/ss2-list.out" "Disc Swap")"
+		nat ss2-next ss2 --frames 2100 --report 100 --press "$swap2:1350:120"
+		nat ss2-same ss2 --frames 2100 --report 100 --press "$swap2:1350:120" --press "$next:1360:5" --press "$next:1380:5"
+		box ss2-box ss2 --frames 2100 --report 100 --press "$swap2:1350:120"
+		for n in ss2-next ss2-same ss2-box; do stream "$work/$n.out" > "$work/$n.stream"; done
+		check "saturn:disc-change" "with two discs the selector is live; the lid alone closes on the second disc and the selector moved there and back closes it on the first (the two runs end differently), the same in the sandbox" \
+			sh -c "grep -q \"'Next Disc' active\" '$work/ss2-list.out' && ! grep -q \"'Next Disc' active\" '$work/ss.out' && [ \"\$(tail -1 '$work/ss2-next.stream')\" != \"\$(tail -1 '$work/ss2-same.stream')\" ] && cmp -s '$work/ss2-next.stream' '$work/ss2-box.stream' && [ -s '$work/ss2-next.stream' ]"
+	else
+		report "saturn:disc-change" SKIP "no second Saturn disc (SATURN_GAME2)"
+	fi
 
 	# save data: out, changed, in again, and out unchanged
 	if [ -s "$work/ss-saves/saturn.bkr" ]; then
@@ -252,7 +283,7 @@ sys.exit(0 if ids[:2] == ['saturn_jp.bin', 'saturn_na_eu.bin'] and all('required
 	check "saturn:firmware-missing" "without its BIOS the console is refused, by the file's name" \
 		grep -q 'Init failed.*saturn_.*\.bin' "$work/ss-nobios.out" "$work/ss-nobios.err"
 else
-	for t in runs pad sandbox controls bus lag state-every-frame state-other-box state-rewind setting devices save-data firmware-asked firmware-missing; do
+	for t in runs pad sandbox controls bus lag state-every-frame state-other-box state-rewind setting devices lid disc-change save-data firmware-asked firmware-missing; do
 		report "saturn:$t" SKIP "no Saturn game with its two BIOS files (SATURN_GAME, SATURN_BIOS_JP, SATURN_BIOS_NA_EU)"
 	done
 fi

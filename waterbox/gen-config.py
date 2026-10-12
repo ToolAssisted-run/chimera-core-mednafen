@@ -174,6 +174,12 @@ def controls_of(system, hand):
                 control["bindings"].append({"device": dev["short"], "input": inp["index"], "sname": sname, "mode": mode,
                                             "label": "" if clean(label).lower() == bare.lower() else label})
 
+    if system["disc"]:
+        # the drive's own controls, which are no device's: this core's
+        for sname, bare in (("disc_previous", "Previous Disc"), ("disc_next", "Next Disc"), ("disc_swap", "Disc Swap")):
+            buttons.append({"name": bare, "bare": bare, "family": "", "player": 0, "port": -1, "min": 0, "max": 1, "neutral": 0,
+                            "bindings": [{"device": "", "input": -1, "sname": sname, "mode": "d", "label": ""}]})
+
     for group, what in ((buttons, "buttons"), (axes, "axes")):
         seen = {}
         for c in group:
@@ -191,8 +197,10 @@ def letters_of(buttons, hand):
     column header for those one letter does not tell apart."""
     letters, headers = {}, {}
     taken, heads = {}, {}
-    wanted = hand.get("letters", {})
-    header_of = hand.get("headerOf", {})
+    wanted = dict(hand.get("letters", {}))
+    header_of = dict(hand.get("headerOf", {}))
+    wanted.update({"Previous Disc": "<", "Next Disc": ">", "Disc Swap": "d"})
+    header_of.update({"Previous Disc": "PrevDisc", "Next Disc": "NextDisc", "Disc Swap": "Swap"})
     for b in buttons:
         used = taken.setdefault(b["player"], set())
         letter = wanted.get(b["bare"])
@@ -401,6 +409,7 @@ def main():
         "lag": {"inputWasRead": "InputWasRead"},
         "systemNames": system_names,
         "settings": settings,
+        "_discs_note": "A machine that takes discs has three controls of the drive. Previous Disc and Next Disc move a selector over the project's discs and touch nothing. Disc Swap is the lid: up for as long as it is held, and closing on the selected disc, or on the next one when the selector was not moved.",
         "_machines_note": "ONE core.wbx, four systems. What they share is above; what makes them different machines is below, and the 'machine' setting picks one. A machine's controls are every input of every device its ports take, by Mednafen's own tables: the ones of what is plugged in are shown and the rest leave the input roll.",
         "machineSetting": "machine",
         "machines": machines,

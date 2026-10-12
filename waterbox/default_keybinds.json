@@ -594,7 +594,10 @@
    "P12 Gun Trigger": "",
    "P12 Gun Start": "",
    "P12 Gun Offscreen Shot": "",
-   "Reset": ""
+   "Reset": "",
+   "Previous Disc": "",
+   "Next Disc": "",
+   "Disc Swap": ""
   },
   "Virtual Boy Controller": {
    "P1 A": "X, J1 B2, X1 A",
@@ -741,7 +744,10 @@
    "P8 Mode 1 B": "",
    "P8 Mode 2 B": "",
    "P8 Mouse Left": "",
-   "P8 Mouse Right": ""
+   "P8 Mouse Right": "",
+   "Previous Disc": "",
+   "Next Disc": "",
+   "Disc Swap": ""
   },
   "Lynx Controller": {
    "P1 A": "X, J1 B2, X1 A",

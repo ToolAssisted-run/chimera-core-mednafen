@@ -80,8 +80,9 @@ Mednafen is a numbered patch in `patches/`.
 
 ## What is on this machine to test with
 
-- Saturn: Virtua Fighter Remix (USA) and Virtua Fighter 2, and the BIOS
-  files.
+- Saturn: Virtua Fighter Remix (USA) and Virtua Fighter 2 (Japan), and the
+  BIOS files. Both run; the second starts with the Japanese BIOS and in the
+  console's 704x480 mode.
 - Lynx: the boot ROM, no game.
 - PC-FX: the BIOS (`pcfx.rom`), no game.
 - Virtual Boy: no game. The tests assemble a small program for it
@@ -98,7 +99,7 @@ each from the owner before anything can be said of them beyond "it builds".
 | 2 | The same in the sandbox, with the Saturn's helper thread gone | The reference and the sandbox give the same digests, frame by frame; savestates | done 2026-10-12: 1,500 frames the same natively, in the sandbox, with a state saved and loaded every frame, with the state moved to a new sandbox, and after going back to a kept state |
 | 3 | Controllers and settings generated from Mednafen's descriptions; the package | Chimera's package checks; a project run by Chimera's engine | done 2026-10-12: 743 buttons and 232 axes over the four systems, 58 settings; Chimera's package checks pass (18 of 18); a project of Virtua Fighter Remix with its BIOS as firmware plays a movie in Chimera's engine and the movie's presses reach the game |
 | 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | waits for games |
-| 5 | Save data, lag frames, disc change, CHD | Tests for each | partly, 2026-10-12: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data. Not done: changing discs, CHD images |
+| 5 | Save data, lag frames, disc change, CHD | Tests for each | done 2026-10-12 except CHD: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data, the drive's lid and disc selector. Not done: CHD images |
 | 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | partly, 2026-10-12: the test script (`waterbox/run-gate.sh`, 30 tests) with a Virtual Boy program it assembles itself. Not done: the window test, Windows, the CI workflow, README |
 | 7 | Publishing | The owner's word | not started |
 
@@ -145,8 +146,7 @@ each from the owner before anything can be said of them beyond "it builds".
   before the machine is built (patch 0005). The two files are mounted under
   names of this core's own, because Mednafen refuses a file named like one
   known BIOS that holds another.
-- **Not done yet**: changing discs, CHD images, the Saturn's ST-V arcade
-  board.
+- **Not done yet**: CHD images, the Saturn's ST-V arcade board.
 
 ## What step 5 decided
 
@@ -168,3 +168,9 @@ each from the owner before anything can be said of them beyond "it builds".
 - **The Virtual Boy test program** draws nothing. It counts in RAM and
   copies the pad there, which is enough to compare the sandbox with the
   reference, to test savestates and to test lag frames, on a CI runner.
+- **The drive** has three controls, named as Chimera's other disc cores
+  name them: Previous Disc and Next Disc move a selector over the project's
+  discs, and Disc Swap is the lid, up while held and closing on the selected
+  disc (or the next one when the selector was not moved). With the lid up a
+  Saturn leaves the game for its own CD screen. The drive's light is lit on
+  a frame a sector was read.

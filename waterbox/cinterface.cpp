@@ -141,6 +141,57 @@ bool has_bus()
 	return false;
 }
 
+std::vector<CDInterface *> g_discs;
+std::vector<std::string> g_discNames;
+
+// ---- the drive ---------------------------------------------------------------
+// The project's discs are all in reach of the drive. Previous Disc and Next
+// Disc move a selector and touch nothing; Disc Swap is the lid, up for as
+// long as it is held, and closing on the selected disc - or on the next one
+// when the selector was not moved. All of it is the machine's state: a
+// rewind takes it back.
+enum { kDiscPrevious, kDiscNext, kDiscSwap, kDiscControls };
+bool g_discHeld[kDiscControls], g_discWasHeld[kDiscControls];
+int g_discSelected, g_discInserted;
+bool g_selectorMoved;
+bool g_driveRead;                 // a sector was read this frame: the drive's light
+
+// the states of the drive Mednafen is told of (load_discs)
+enum { kTrayOpen = 0, kTrayClosedEmpty = 1, kTrayClosed = 2 };
+
+void run_drive()
+{
+	int const count = int(g_discs.size());
+	if (!count || !g_system->SetMedia) return;
+	if (g_discHeld[kDiscNext] && !g_discWasHeld[kDiscNext]) { g_discSelected = (g_discSelected + 1) % count; g_selectorMoved = true; }
+	if (g_discHeld[kDiscPrevious] && !g_discWasHeld[kDiscPrevious]) { g_discSelected = (g_discSelected + count - 1) % count; g_selectorMoved = true; }
+	if (g_discHeld[kDiscSwap] && !g_discWasHeld[kDiscSwap])
+	{
+		g_system->SetMedia(0, kTrayOpen, 0, 0);
+		g_discInserted = -1;
+		g_selectorMoved = false;
+	}
+	if (!g_discHeld[kDiscSwap] && g_discWasHeld[kDiscSwap])
+	{
+		if (!g_selectorMoved) g_discSelected = (g_discSelected + 1) % count;
+		g_system->SetMedia(0, kTrayClosed, uint32(g_discSelected), 0);
+		g_discInserted = g_discSelected;
+	}
+	for (int i = 0; i < kDiscControls; i++) g_discWasHeld[i] = g_discHeld[i];
+}
+
+// Mednafen's reader of a disc image, with the drive's light on it
+class lit_disc : public CDInterface_ST
+{
+public:
+	using CDInterface_ST::CDInterface_ST;
+	bool ReadRawSector(uint8 *buf, int32 lba) override
+	{
+		g_driveRead = true;
+		return CDInterface_ST::ReadRawSector(buf, lba);
+	}
+};
+
 // ---- the ports ---------------------------------------------------------------
 // panel.inc is the package's list of controls, written by gen-config.py from
 // Mednafen's own tables: for each system, every button and axis, and for each
@@ -253,6 +304,11 @@ const InputDeviceInfoStruct *device_for(unsigned port)
 void write_value(control const &c, int32_t value)
 {
 	if (!c.live) return;
+	if (c.live->mode == 'd')   // one of the drive's controls
+	{
+		g_discHeld[!strcmp(c.live->sname, "disc_previous") ? kDiscPrevious : !strcmp(c.live->sname, "disc_next") ? kDiscNext : kDiscSwap] = value != 0;
+		return;
+	}
 	std::vector<uint8_t> &data = g_portData[c.port];
 	const InputDeviceInputInfoStruct &in = *c.input;
 	switch (c.live->mode)
@@ -317,6 +373,12 @@ void build_panel()
 		c.name = row.name;
 		c.port = row.port;
 		c.rows.push_back(&row);
+		if (row.port < 0)
+		{
+			// the drive's controls: the lid always, the selector with more than one disc
+			if (!strcmp(row.sname, "disc_swap") ? !g_discs.empty() : g_discs.size() > 1) c.live = &row;
+			continue;
+		}
 		const InputDeviceInfoStruct *device = size_t(row.port) < g_plugged.size() ? g_plugged[row.port] : nullptr;
 		if (!device || strcmp(device->ShortName, row.device) || !port_connected(row.port)) continue;
 		// the table was made from this very Mednafen: a row that does not find
@@ -357,8 +419,6 @@ std::string lone_rom()
 	return entry;
 }
 
-std::vector<CDInterface *> g_discs;
-
 // Mednafen's own reader of disc images, on the emulation thread: a sector is
 // read from the image's files when the machine asks for it. Opened once: the
 // question of which firmware a disc needs is asked before the machine is built.
@@ -368,7 +428,8 @@ void open_discs(std::vector<std::string> const &images)
 	for (std::string const &image : images)
 	{
 		std::unique_ptr<CDAccess> access(CDAccess_Open(&NVFS, image, false));
-		g_discs.push_back(new CDInterface_ST(std::move(access)));
+		g_discs.push_back(new lit_disc(std::move(access)));
+		g_discNames.push_back(image);
 	}
 }
 
@@ -393,7 +454,8 @@ void load_discs(std::vector<std::string> const &images)
 	for (size_t i = 0; i < g_discs.size(); i++)
 		rmd->Media.push_back(RMD_Media({ "Disc " + std::to_string(i + 1), 0 }));
 	g_system->RMD = rmd;
-	if (g_system->SetMedia) g_system->SetMedia(0, 2, 0, 0);
+	if (g_system->SetMedia) g_system->SetMedia(0, kTrayClosed, 0, 0);
+	g_discSelected = g_discInserted = 0;
 }
 
 void load_cart(std::string const &path)
@@ -823,6 +885,8 @@ ECL_EXPORT void FrameAdvance(uint64_t)
 	g_spec.SoundBufSize = 0;
 	g_lineWidths[0] = ~0;
 	g_inputRead = false;
+	g_driveRead = false;
+	run_drive();
 	if (g_system->TransformInput) g_system->TransformInput();
 	g_system->Emulate(&g_spec);
 	g_spec.VideoFormatChanged = false;
@@ -852,6 +916,17 @@ ECL_EXPORT int GetVsyncDenominator(void) { return 1000; }
 // for the package's generator (run-native --describe): not called by Chimera
 ECL_EXPORT const char *DebugDescribeSystems(void) { return describe_systems(); }
 ECL_EXPORT const char *DescribeDips(void) { return ""; }
+
+// The drive of a machine that takes discs: lit on a frame a sector was read,
+// with the project's discs, the one the selector is on and the one inside
+// (-1 with the lid up).
+ECL_EXPORT int32_t GetDriveCount(void) { return g_discs.empty() ? 0 : 1; }
+ECL_EXPORT const char *GetDriveName(int32_t i) { return i == 0 && !g_discs.empty() ? "CD" : ""; }
+ECL_EXPORT int32_t GetDriveLight(int32_t i) { return i == 0 && g_driveRead; }
+ECL_EXPORT int32_t GetDriveMediaCount(int32_t i) { return i == 0 ? int32_t(g_discs.size()) : 0; }
+ECL_EXPORT const char *GetDriveMediaName(int32_t i, int32_t n) { return i == 0 && n >= 0 && size_t(n) < g_discNames.size() ? g_discNames[n].c_str() : ""; }
+ECL_EXPORT int32_t GetDriveMediaSelected(int32_t i) { return i == 0 ? g_discSelected : -1; }
+ECL_EXPORT int32_t GetDriveMediaInserted(int32_t i) { return i == 0 ? g_discInserted : -1; }
 
 // Export Save Data: each save memory as the file Mednafen would write
 ECL_EXPORT int32_t GetSaveDataFileCount(void)
