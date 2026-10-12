@@ -12,7 +12,8 @@
  *                              player controls (never Reset/Test/Service)
  *          --list-panel        print the panel, and which controls are live
  *          --list-dips         print the game's dip switches and their values
- *          --dump-domain NAME FILE   write a memory domain after the run
+ *          --dump-domain NAME FILE   write a memory domain after the run;
+ *                              NAME "bus:ADDRESS:LENGTH" is a part of the bus
  *          --vid-out FILE      the last picture: "W H\n" then BGRA rows
  *          --savedata-out DIR  the game's save data after the run, a file each
  * SPDX-License-Identifier: MIT
@@ -47,6 +48,11 @@ struct gate_core
 	const uint8_t *(*domain_ptr)(int i);
 	int64_t (*domain_size)(int i);
 	void (*pre_frame)(void); /* run-wbx's rerecord / session hook, or NULL */
+	/* the first bus, for a machine whose memory is read through one: its live
+	 * ranges as (address, length) pairs ended by a length of 0, and a read of
+	 * up to 65536 bytes. Either may answer NULL: no bus. */
+	const int64_t *(*bus_ranges)(void);
+	const uint8_t *(*bus_read)(int64_t addr, int32_t len);
 	int (*save_count)(void);
 	const char *(*save_name)(int i);
 	int64_t (*save_size)(int i);
@@ -172,6 +178,15 @@ static uint64_t gate_ram_hash(const struct gate_core *c)
 	uint64_t h = 0;
 	for (int i = 0; i < c->domain_count(); i++)
 		h = gate_fnv(h, c->domain_ptr(i), (size_t)c->domain_size(i));
+	/* and what the bus's live ranges hold */
+	const int64_t *ranges = c->bus_ranges ? c->bus_ranges() : NULL;
+	for (; ranges && ranges[1] != 0; ranges += 2)
+		for (int64_t at = 0; at < ranges[1]; at += 0x10000)
+		{
+			int32_t const len = (int32_t)(ranges[1] - at < 0x10000 ? ranges[1] - at : 0x10000);
+			const uint8_t *bytes = c->bus_read(ranges[0] + at, len);
+			if (bytes) h = gate_fnv(h, bytes, (size_t)len);
+		}
 	return h;
 }
 
@@ -234,6 +249,16 @@ static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 	if (o->dumpDomain)
 	{
 		int found = 0;
+		/* "bus:ADDRESS:LENGTH" is that part of the bus */
+		if (!strncmp(o->dumpDomain, "bus:", 4) && c->bus_read)
+		{
+			char *end;
+			int64_t const addr = strtoll(o->dumpDomain + 4, &end, 0);
+			int32_t const len = *end == ':' ? (int32_t)strtol(end + 1, 0, 0) : 0;
+			const uint8_t *bytes = len > 0 && len <= 0x10000 ? c->bus_read(addr, len) : NULL;
+			FILE *f = bytes ? fopen(o->dumpPath, "wb") : NULL;
+			if (f) { fwrite(bytes, 1, (size_t)len, f); fclose(f); found = 1; }
+		}
 		for (int i = 0; i < c->domain_count(); i++)
 			if (!strcmp(c->domain_name(i), o->dumpDomain))
 			{

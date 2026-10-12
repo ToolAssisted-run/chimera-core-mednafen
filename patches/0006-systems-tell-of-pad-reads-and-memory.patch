@@ -1,0 +1,137 @@
+The systems tell the frontend when the game reads a controller and where the Saturn's RAM is.
+
+Two things Chimera needs that Mednafen's own program does not. A frame in
+which the game did not take the controllers' state is a lag frame, so each
+system calls MDFN_ChimeraInputRead where its game code is handed a pad's
+state: the Saturn's port registers and its peripheral-data command, the
+Virtual Boy's and the PC-FX's pad data registers, the Lynx's joystick and
+switch registers. And the Saturn's two work RAMs are private to ss.cpp and
+kept as 16-bit words, so it tells where they are with
+MDFN_ChimeraWordMemory, for RAM Watch and RAM Search. The other three
+systems already tell their RAM through MDFNMP_AddRAM.
+
+--- a/src/mednafen.h
++++ b/src/mednafen.h
+@@ -26,6 +26,17 @@
+ 
+ MDFN_HIDE extern NativeVFS NVFS;
+ 
++#if defined(CHIMERA_CORE)
++// chimera: what the systems tell the frontend.
++// The game has just been given the state of a controller. A frame in which
++// this is not called is a lag frame: the game did not look at its input.
++void MDFN_ChimeraInputRead(void);
++// A memory of the machine that is kept as 16-bit words in the host's byte
++// order, with the address the machine's processor finds it at. (Memories kept
++// as bytes are told through MDFNMP_AddRAM, as they always were.)
++void MDFN_ChimeraWordMemory(const char* name, uint32 address, uint16* words, uint32 bytes);
++#endif
++
+ // Points to a dynamically-allocated object, created with data from Emulated*.
+ MDFN_HIDE extern MDFNGI* MDFNGameInfo;
+ 
+--- a/src/ss/smpc.cpp
++++ b/src/ss/smpc.cpp
+@@ -899,12 +899,18 @@
+ 	break;
+ 
+   case 0x3A:
++#if defined(CHIMERA_CORE)
++	Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
+ 	UpdateIOBus(0, SH7095_mem_timestamp);
+ 
+ 	ret = (ret & 0x80) | IOBusState[0];
+ 	break;
+ 
+   case 0x3B:
++#if defined(CHIMERA_CORE)
++	Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
+ 	UpdateIOBus(1, SH7095_mem_timestamp);
+ 
+ 	ret = (ret & 0x80) | IOBusState[1];
+@@ -1249,6 +1255,9 @@
+ 
+      if(IREG[1] & 0x8)
+      {
++#if defined(CHIMERA_CORE)
++      Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
+       #define JR_WAIT(cond)	{ SMPC_WAIT_UNTIL_COND((cond) || PendingVB); if(PendingVB) { SS_DBGTI(SS_DBG_SMPC, "[SMPC] abortjr wait"); goto AbortJR; } }
+       #define JR_EAT(n)		{ SMPC_EAT_CLOCKS(n); if(PendingVB) { SS_DBGTI(SS_DBG_SMPC, "[SMPC] abortjr eat"); goto AbortJR; } }
+       #define JR_WRNYB(val)															\
+--- a/src/vb/input.cpp
++++ b/src/vb/input.cpp
+@@ -83,13 +83,21 @@
+   
+  switch(A & 0xFF)
+  {
+-  case 0x10: if(InstantReadHack)
++  case 0x10:
++#if defined(CHIMERA_CORE)
++	     Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
++	     if(InstantReadHack)
+ 	      ret = PadData;
+ 	     else
+ 	      ret = SDR & 0xFF;
+ 	     break;
+ 
+-  case 0x14: if(InstantReadHack)
++  case 0x14:
++#if defined(CHIMERA_CORE)
++	     Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
++	     if(InstantReadHack)
+ 	      ret = PadData >> 8;
+ 	     else
+ 	      ret = SDR >> 8;
+--- a/src/pcfx/input.cpp
++++ b/src/pcfx/input.cpp
+@@ -248,6 +248,9 @@
+  {
+   int which = (A >> 7) & 1;
+ 
++#if defined(CHIMERA_CORE)
++  Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
+   ret = data_latch[which] >> ((A & 2) ? 16 : 0);
+ 
+   // Which way is correct?  Clear on low reads, or both?  Official docs only say low...
+--- a/src/lynx/susie.cpp
++++ b/src/lynx/susie.cpp
+@@ -2070,6 +2070,9 @@
+ 			return retval;
+ 
+ 		case (JOYSTICK&0xff):
++#if defined(CHIMERA_CORE)
++			Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
+ 			if(mSPRSYS_LeftHand)
+ 			{
+ 				retval= mJOYSTICK.Byte;
+@@ -2089,6 +2092,9 @@
+ 
+ 
+ 		case (SWITCHES&0xff):
++#if defined(CHIMERA_CORE)
++			Mednafen::MDFN_ChimeraInputRead();	// chimera: the game reads a controller
++#endif
+ 			retval=mSWITCHES.Byte;
+ //			TRACE_SUSIE2("Peek(SWITCHES)=$%02x at PC=$%04x",retval,mSystem.mCpu->GetPC());
+ 			return retval;
+--- a/src/ss/ss.cpp
++++ b/src/ss/ss.cpp
+@@ -1384,6 +1384,11 @@
+  SS_SetPhysMemMap(0x06000000, 0x07FFFFFF, WorkRAMH, sizeof(WorkRAMH), true);
+  MDFNMP_RegSearchable(0x00200000, sizeof(WorkRAML));
+  MDFNMP_RegSearchable(0x06000000, sizeof(WorkRAMH));
++#if defined(CHIMERA_CORE)
++ // chimera: the two work RAMs, for RAM Watch and RAM Search
++ MDFN_ChimeraWordMemory("Work RAM Low", 0x00200000, WorkRAML, sizeof(WorkRAML));
++ MDFN_ChimeraWordMemory("Work RAM High", 0x06000000, WorkRAMH, sizeof(WorkRAMH));
++#endif
+ 
+  {
+   std::unique_ptr<FileStream> cart_rom_stream;

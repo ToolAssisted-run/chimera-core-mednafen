@@ -6,7 +6,8 @@
 # Usage: tests/try.sh [-g] <machine> <game folder under tests/games-local> [run options]
 #   -g   the sandbox build and not the reference
 # For a disc the folder's .cue is the disc; otherwise its one file is the game.
-# SETTINGS in the environment adds settings to the project (see below).
+# SETTINGS in the environment adds settings to the project, and SAVES save
+# data files (see below).
 set -eu
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/.." && pwd)"
@@ -28,7 +29,13 @@ for f in "$here/roms-local"/*; do
 done
 first="$(ls "$here/games-local/$game" | grep -i '\.cue$' | head -1)"
 if [ -n "$first" ]; then slot="disc"; else slot="cart"; first="$(ls "$here/games-local/$game" | head -1)"; fi
-printf '{"%s":["%s"]}' "$slot" "$first" > "$work/slots"
+# SAVES lists save data files the project starts from: SAVES="/path/a.bkr /path/b.bcr"
+saves=""
+for f in ${SAVES:-}; do
+	ln -s "$f" "$work/$(basename "$f")"
+	saves="$saves${saves:+,}\"$(basename "$f")\""
+done
+printf '{"%s":["%s"]%s}' "$slot" "$first" "${saves:+,\"savedata\":[$saves]}" > "$work/slots"
 # SETTINGS adds settings to the project: SETTINGS='"ss.input.port1":"3dpad","ss.h_overscan":false'
 printf '{"machine":"%s"%s}' "$machine" "${SETTINGS:+,$SETTINGS}" > "$work/settings"
 echo "work folder: $work" >&2

@@ -1,0 +1,101 @@
+Saves stay in memory, and the Saturn tells the frontend where they are.
+
+Mednafen writes the Saturn's backup memory, a cartridge's and the clock
+chip's to files a few seconds after the game changes them, and again when
+the game is closed; and when a game starts it puts a copy of each save file
+aside. In Chimera a save is part of the machine: it lives in the machine's
+memory, where a savestate holds it and going back in time takes it back
+too, and the user writes it to a file with Export Save Data. A project's
+save data is a file that is read and never written.
+
+So the Saturn's three save functions do nothing, no copies of save files
+are made (any system), and the Saturn says where its backup memories are
+(MDFN_ChimeraSaveMemory). Loading is untouched: a project that starts from
+a saved game gives Mednafen the file to read.
+
+--- a/src/file.cpp
++++ b/src/file.cpp
+@@ -297,6 +297,11 @@
+ 
+ void MDFN_BackupSavFile(const uint8 max_backup_count, const char* sav_ext)
+ {
++#if defined(CHIMERA_CORE)
++ // chimera: no copies are kept of a save file. A project's save data is a
++ // file of the project's, read and never written.
++ return;
++#endif
+  std::unique_ptr<MemoryStream> tmp;
+ 
+  try
+--- a/src/mednafen.h
++++ b/src/mednafen.h
+@@ -35,6 +35,10 @@
+ // order, with the address the machine's processor finds it at. (Memories kept
+ // as bytes are told through MDFNMP_AddRAM, as they always were.)
+ void MDFN_ChimeraWordMemory(const char* name, uint32 address, uint16* words, uint32 bytes);
++// A memory the machine keeps while it is off (a battery-backed RAM), under
++// the extension Mednafen saves it with ("bkr"). "words" as above; a file of
++// such a memory holds the words high byte first.
++void MDFN_ChimeraSaveMemory(const char* ext, void* memory, uint64 bytes, bool words);
+ #endif
+ 
+ // Points to a dynamically-allocated object, created with data from Emulated*.
+--- a/src/ss/ss.cpp
++++ b/src/ss/ss.cpp
+@@ -1606,6 +1606,20 @@
+ 
+  BackupRAM_Dirty = false;
+  BackupRAM_SaveDelay = 0;
++#if defined(CHIMERA_CORE)
++ // chimera: the memories that outlive the power switch, for Export Save Data
++ {
++  const char* ext = nullptr;
++  void* nv_ptr = nullptr;
++  bool nv16 = false;
++  uint64 nv_size = 0;
++
++  MDFN_ChimeraSaveMemory("bkr", BackupRAM, sizeof(BackupRAM), false);
++  CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
++  if(ext)
++   MDFN_ChimeraSaveMemory(ext, nv_ptr, nv_size, nv16);
++ }
++#endif
+ 
+  CART_GetClearNVDirty();
+  CartNV_SaveDelay = 0;
+@@ -1911,6 +1925,11 @@
+ 
+ static MDFN_COLD void SaveBackupRAM(void)
+ {
++#if defined(CHIMERA_CORE)
++ // chimera: a save stays in the machine's memory, where a savestate holds it;
++ // Chimera writes it to a file when the user exports it.
++ return;
++#endif
+  FileStream brs(MDFN_MakeFName(MDFNMKF_SAV, 0, "bkr"), FileStream::MODE_WRITE_INPLACE);
+ 
+  brs.write(BackupRAM, sizeof(BackupRAM));
+@@ -1973,6 +1992,11 @@
+ 
+ static MDFN_COLD void SaveCartNV(void)
+ {
++#if defined(CHIMERA_CORE)
++ // chimera: a save stays in the machine's memory, where a savestate holds it;
++ // Chimera writes it to a file when the user exports it.
++ return;
++#endif
+  const char* ext = nullptr;
+  void* nv_ptr = nullptr;
+  bool nv16 = false;
+@@ -2016,6 +2040,11 @@
+ 
+ static MDFN_COLD void SaveRTC(void)
+ {
++#if defined(CHIMERA_CORE)
++ // chimera: a save stays in the machine's memory, where a savestate holds it;
++ // Chimera writes it to a file when the user exports it.
++ return;
++#endif
+  FileStream sds(MDFN_MakeFName(MDFNMKF_SAV, 0, "smpc"), FileStream::MODE_WRITE_INPLACE);
+ 
+  SMPC_SaveNV(&sds);

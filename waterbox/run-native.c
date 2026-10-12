@@ -60,6 +60,10 @@ static const int16_t *audio(int *n)
 	return GetAudio();
 }
 static const uint8_t *domain_ptr(int i) { return GetMemoryDomainPtr(i); }
+extern const int64_t *GetBusRanges(int32_t bus);
+extern const uint8_t *ReadBus(int32_t bus, int64_t addr, int32_t len);
+static const int64_t *bus_ranges(void) { return GetBusRanges(0); }
+static const uint8_t *bus_read(int64_t addr, int32_t len) { return ReadBus(0, addr, len); }
 
 int main(int argc, char **argv)
 {
@@ -107,6 +111,8 @@ int main(int argc, char **argv)
 		.domain_name = GetMemoryDomainName,
 		.domain_ptr = domain_ptr,
 		.domain_size = GetMemoryDomainSize,
+		.bus_ranges = bus_ranges,
+		.bus_read = bus_read,
 		.pre_frame = NULL,
 		.save_count = save_count,
 		.save_name = save_name,

@@ -40,8 +40,11 @@ std::string MDFN_MakeFName(MakeFName_Type type, int id1, const char *cd1)
 {
 	if (type == MDFNMKF_FIRMWARE)
 		return frontend_firmware_path(cd1 ? cd1 : "");
-	// saves, snapshots, palettes: nothing of these is read from or written to
-	// files by this core. A name that exists nowhere is "not there".
+	// a save memory starts from the project's save data, when it has some
+	if (type == MDFNMKF_SAV)
+		return frontend_save_path(cd1 ? cd1 : "");
+	// snapshots, palettes: nothing of these is read from or written to files
+	// by this core. A name that exists nowhere is "not there".
 	return std::string("chimera-no-such-file/") + (cd1 ? cd1 : "");
 }
 
@@ -149,7 +152,8 @@ uint64 MDFN_GetSettingMultiM(const char *name) { return MDFN_GetSettingUI(name);
 
 // ---- cheats, the music player: nothing ---------------------------------------
 void MDFNMP_Init(uint32 ps, uint32 numpages) { }
-void MDFNMP_AddRAM(uint32 size, uint32 address, uint8 *RAM, bool use_in_search) { }
+// a system's RAM, told for cheat searches: it is what RAM Watch and RAM Search read
+void MDFNMP_AddRAM(uint32 size, uint32 address, uint8 *RAM, bool use_in_search) { frontend_add_memory(address, RAM, size); }
 void MDFNMP_RegSearchable(uint32 addr, uint32 size) { }
 void MDFNMP_Kill(void) { }
 void MDFN_LoadGameCheats(Stream *override) { }

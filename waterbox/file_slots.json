@@ -6,18 +6,55 @@
    "title": "Discs",
    "min": 1,
    "max": 8,
-   "formats": ["cue"],
+   "formats": [
+    "cue"
+   ],
    "help": "The game's CD image: a .cue file, with the track files it names beside it. For a game on several discs, list them all in order. The first is in the drive when the console starts.",
-   "exposedWhen": {"setting": "machine", "in": ["saturn", "pcfx"]}
+   "exposedWhen": {
+    "setting": "machine",
+    "in": [
+     "saturn",
+     "pcfx"
+    ]
+   }
   },
   {
    "id": "cart",
    "title": "Cartridge",
    "min": 1,
    "max": 1,
-   "formats": ["vb", "vboy", "lnx"],
+   "formats": [
+    "vb",
+    "vboy",
+    "lnx"
+   ],
    "help": "The game's cartridge: a .vb or .vboy file for the Virtual Boy, a .lnx file for the Lynx.",
-   "exposedWhen": {"setting": "machine", "in": ["virtualboy", "lynx"]}
+   "exposedWhen": {
+    "setting": "machine",
+    "in": [
+     "virtualboy",
+     "lynx"
+    ]
+   }
+  },
+  {
+   "id": "savedata",
+   "title": "Save data",
+   "min": 0,
+   "max": 2,
+   "formats": [
+    "bkr",
+    "bcr"
+   ],
+   "help": "What the Saturn's backup memory holds at the start, for a project that begins from a saved game. These are the files that Emulator > Export Save Data... writes: a .bkr file is the console's own backup memory and a .bcr file the backup memory cartridge's. Files of the same kinds from Mednafen work as they are. The file is never changed. Leave this empty to start with empty memory.",
+   "exposedWhen": {
+    "setting": "machine",
+    "in": [
+     "saturn"
+    ]
+   },
+   "namePattern": "\\.(bkr|bcr)$",
+   "nameHelp": "a save file is identified by its extension: .bkr for the console's backup memory, .bcr for the backup memory cartridge."
   }
  ]
 }

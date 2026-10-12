@@ -26,19 +26,18 @@ downloads the archive once (into `build/cache`), checks it, unpacks it into
 is not in git. zlib is a submodule because Mednafen brings none and the
 sandbox's toolchain has none.
 
-Run the script again after changing a patch: it makes `extern/mednafen`
-again from the archive. An edit made in `extern/mednafen` by hand is lost
-then, so a change to Mednafen is kept as a patch:
+A change to Mednafen is kept as a patch. Edit the file in
+`extern/mednafen`, build and test, and then:
 
 ```sh
-mkdir /tmp/pristine && tar -xJf build/cache/mednafen-1.32.1.tar.xz -C /tmp/pristine
-# edit extern/mednafen/src/<file>, build, test; then
-( cd /tmp/pristine && ln -s mednafen a && ln -s <this checkout>/extern/mednafen b &&
-  diff -u a/src/<file> b/src/<file> ) > patches/NNNN-what-it-does.patch
+waterbox/make-patch.sh NNNN-what-it-does < description.txt
 ```
 
-with a few lines above the diff saying what the change is and why. Every
-change is inside `#if defined(CHIMERA_CORE)`.
+writes what differs from the archive with the existing patches as the next
+patch, with the description above the diff: what the change is and why.
+Every change is inside `#if defined(CHIMERA_CORE)`. `fetch-mednafen.sh`
+makes `extern/mednafen` again from the archive whenever a patch changes, so
+an edit that was not made into a patch is lost then.
 
 ## What is compiled
 
@@ -110,3 +109,17 @@ waterbox/build-package.sh -r <chimera checkout>
 builds the sandbox core and writes `build/Cores/mednafen.chimeraCore` in
 that checkout. `tests/make-project.py` writes a project for a game, which
 Chimera's `chimera-run --project` then plays.
+
+## The tests
+
+```sh
+CHIMERA_ROOT=<chimera checkout> waterbox/run-gate.sh
+```
+
+runs every test and says, for each, what was compared. The Virtual Boy
+tests need nothing: the script assembles a small program for it. The Saturn
+tests need a game (a folder with a `.cue` and its tracks, `SATURN_GAME`, or
+`tests/games-local/vfremix`) and the two BIOS files in `tests/roms-local`
+(`sega_101.bin`, `mpr-17933.bin`); they say SKIP without them. Without
+`CHIMERA_ROOT` the tests that run the package in Chimera's engine are
+skipped.

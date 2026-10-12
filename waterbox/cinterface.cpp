@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <strings.h>
 #include <map>
 #include <memory>
 #include <string>
@@ -81,6 +82,64 @@ int g_audioFrames;
 std::vector<uint32_t> g_picture;
 int g_width, g_height;
 bool g_render = true;
+
+// ---- the machine's memory ---------------------------------------------------
+// What the systems tell of their RAM as they start. A memory kept as bytes is
+// a memory domain: Chimera reads it where it lies. The Saturn keeps its RAM
+// as 16-bit words in the host's byte order, so its bytes are not where the
+// console's processor finds them; those memories are read through a bus, at
+// the console's own addresses, a byte at a time in the console's order.
+struct memory_area
+{
+	std::string name;
+	uint32_t address;
+	uint8_t *bytes;
+	uint32_t size;
+	bool words;                   // 16-bit words in the host's order
+};
+std::vector<memory_area> g_memory;
+
+// The memories the machine keeps while it is off, as the systems tell of
+// them. Each is a file of the save data: Mednafen's own extension names it
+// ("bkr" is the Saturn's internal backup memory), and a memory kept as words
+// is written high byte first, which is the file Mednafen itself reads.
+struct save_memory
+{
+	std::string ext;
+	uint8_t *bytes;
+	uint64_t size;
+	bool words;
+};
+std::vector<save_memory> g_saves;
+struct save_file
+{
+	std::string name;
+	std::vector<uint8_t> bytes;
+};
+std::vector<save_file> g_saveFiles;   // what the last export listed
+bool g_inputRead;                 // the game took a controller's state this frame
+
+const memory_area *domain_at(int index)
+{
+	for (auto const &m : g_memory)
+		if (!m.words && index-- == 0) return &m;
+	return nullptr;
+}
+
+// the byte the console's processor finds at an address of the bus
+uint8_t *bus_byte(int64_t address)
+{
+	for (auto const &m : g_memory)
+		if (m.words && address >= m.address && address < int64_t(m.address) + m.size)
+			return &m.bytes[(address - m.address) ^ 1];   // the host is little-endian, the console is not
+	return nullptr;
+}
+bool has_bus()
+{
+	for (auto const &m : g_memory)
+		if (m.words) return true;
+	return false;
+}
 
 // ---- the ports ---------------------------------------------------------------
 // panel.inc is the package's list of controls, written by gen-config.py from
@@ -638,6 +697,46 @@ bool frontend_setting(const char *name, std::string &value)
 }
 
 std::string frontend_firmware_path(const char *name) { return name; }
+
+// a system's name for nothing but an address: the names Chimera shows
+void frontend_add_memory(uint32_t address, uint8_t *bytes, uint32_t size)
+{
+	static const struct { const char *machine; uint32_t address; const char *name; } kNames[] = {
+		{ "virtualboy", 0x05000000, "WRAM" },
+		{ "virtualboy", 0x06000000, "Cartridge RAM" },
+		{ "pcfx", 0x00000000, "RAM" },
+		{ "lynx", 0x00000000, "RAM" },
+	};
+	if (!bytes || !size) return;
+	char name[32];
+	snprintf(name, sizeof name, "RAM %08X", unsigned(address));
+	for (auto const &n : kNames)
+		if (g_machine == n.machine && address == n.address) snprintf(name, sizeof name, "%s", n.name);
+	g_memory.push_back({ name, address, bytes, size, false });
+}
+
+std::string frontend_save_path(const char *ext)
+{
+	std::string const tail = std::string(".") + ext;
+	for (std::string const &file : slot_files("savedata"))
+		if (file.size() > tail.size() && !strcasecmp(file.c_str() + file.size() - tail.size(), tail.c_str()))
+			return file;
+	return std::string("chimera-no-such-file/") + ext;
+}
+
+// the hooks of patches/0006 and 0007
+namespace Mednafen
+{
+void MDFN_ChimeraSaveMemory(const char *ext, void *memory, uint64 bytes, bool words)
+{
+	g_saves.push_back({ ext, static_cast<uint8_t *>(memory), bytes, words });
+}
+void MDFN_ChimeraInputRead(void) { g_inputRead = true; }
+void MDFN_ChimeraWordMemory(const char *name, uint32 address, uint16 *words, uint32 bytes)
+{
+	g_memory.push_back({ name, address, reinterpret_cast<uint8_t *>(words), bytes, true });
+}
+}
 int64_t frontend_time() { return g_time; }
 
 // ---- the exports -----------------------------------------------------------------
@@ -723,6 +822,7 @@ ECL_EXPORT void FrameAdvance(uint64_t)
 	g_spec.skip = !g_render;
 	g_spec.SoundBufSize = 0;
 	g_lineWidths[0] = ~0;
+	g_inputRead = false;
 	if (g_system->TransformInput) g_system->TransformInput();
 	g_system->Emulate(&g_spec);
 	g_spec.VideoFormatChanged = false;
@@ -731,7 +831,8 @@ ECL_EXPORT void FrameAdvance(uint64_t)
 	if (g_render) take_picture();
 }
 
-ECL_EXPORT int InputWasRead(void) { return 1; }
+// a frame in which the game did not take the controllers' state is a lag frame
+ECL_EXPORT int InputWasRead(void) { return g_inputRead ? 1 : 0; }
 ECL_EXPORT void SetRenderingEnabled(int on) { g_render = on != 0; }
 
 ECL_EXPORT uint32_t *GetVideoBgra(void) { return g_picture.data(); }
@@ -752,15 +853,77 @@ ECL_EXPORT int GetVsyncDenominator(void) { return 1000; }
 ECL_EXPORT const char *DebugDescribeSystems(void) { return describe_systems(); }
 ECL_EXPORT const char *DescribeDips(void) { return ""; }
 
-ECL_EXPORT int32_t GetSaveDataFileCount(void) { return 0; }
-ECL_EXPORT const char *GetSaveDataFileName(int32_t) { return ""; }
-ECL_EXPORT int64_t GetSaveDataFileSize(int32_t) { return 0; }
-ECL_EXPORT const uint8_t *GetSaveDataFileBuffer(int32_t) { return nullptr; }
+// Export Save Data: each save memory as the file Mednafen would write
+ECL_EXPORT int32_t GetSaveDataFileCount(void)
+{
+	g_saveFiles.clear();
+	for (auto const &m : g_saves)
+	{
+		save_file f;
+		f.name = g_machine + "." + m.ext;
+		f.bytes.assign(m.bytes, m.bytes + m.size);
+		if (m.words)
+			for (size_t i = 0; i + 1 < f.bytes.size(); i += 2) std::swap(f.bytes[i], f.bytes[i + 1]);
+		g_saveFiles.push_back(std::move(f));
+	}
+	return int32_t(g_saveFiles.size());
+}
+ECL_EXPORT const char *GetSaveDataFileName(int32_t i) { return i >= 0 && size_t(i) < g_saveFiles.size() ? g_saveFiles[i].name.c_str() : ""; }
+ECL_EXPORT int64_t GetSaveDataFileSize(int32_t i) { return i >= 0 && size_t(i) < g_saveFiles.size() ? int64_t(g_saveFiles[i].bytes.size()) : 0; }
+ECL_EXPORT const uint8_t *GetSaveDataFileBuffer(int32_t i) { return i >= 0 && size_t(i) < g_saveFiles.size() ? g_saveFiles[i].bytes.data() : nullptr; }
 
-ECL_EXPORT int GetMemoryDomainCount(void) { return 0; }
-ECL_EXPORT const char *GetMemoryDomainName(int) { return ""; }
-ECL_EXPORT uint8_t *GetMemoryDomainPtr(int) { return nullptr; }
-ECL_EXPORT int64_t GetMemoryDomainSize(int) { return 0; }
-ECL_EXPORT int GetMemoryDomainWritable(int) { return 0; }
+ECL_EXPORT int GetMemoryDomainCount(void)
+{
+	int n = 0;
+	while (domain_at(n)) n++;
+	return n;
+}
+ECL_EXPORT const char *GetMemoryDomainName(int i) { return domain_at(i) ? domain_at(i)->name.c_str() : ""; }
+ECL_EXPORT uint8_t *GetMemoryDomainPtr(int i) { return domain_at(i) ? domain_at(i)->bytes : nullptr; }
+ECL_EXPORT int64_t GetMemoryDomainSize(int i) { return domain_at(i) ? domain_at(i)->size : 0; }
+ECL_EXPORT int GetMemoryDomainWritable(int i) { return domain_at(i) != nullptr; }
+
+// The Saturn's memory as its processors address it (see memory_area). The bus
+// is mostly nothing: its ranges say where the RAM is.
+ECL_EXPORT int32_t GetBusCount(void) { return has_bus() ? 1 : 0; }
+ECL_EXPORT const char *GetBusName(int32_t i) { return i == 0 && has_bus() ? "System Bus" : ""; }
+ECL_EXPORT int64_t GetBusSize(int32_t i) { return i == 0 && has_bus() ? 0x08000000 : 0; }
+ECL_EXPORT int32_t GetBusWritable(int32_t i) { return i == 0 && has_bus(); }
+ECL_EXPORT int32_t PeekBus(int32_t bus, int32_t addr)
+{
+	const uint8_t *at = bus == 0 ? bus_byte(int64_t(uint32_t(addr))) : nullptr;
+	return at ? *at : 0;
+}
+ECL_EXPORT void PokeBus(int32_t bus, int32_t addr, int32_t value)
+{
+	uint8_t *at = bus == 0 ? bus_byte(int64_t(uint32_t(addr))) : nullptr;
+	if (at) *at = uint8_t(value);
+}
+ECL_EXPORT const uint8_t *ReadBus(int32_t bus, int64_t addr, int32_t len)
+{
+	// an answer to a tool is in no savestate
+	ECL_INVISIBLE static uint8_t buffer[0x10000];
+	if (bus != 0 || len < 0 || len > int32_t(sizeof buffer)) return nullptr;
+	for (int32_t i = 0; i < len; i++)
+	{
+		const uint8_t *at = bus_byte(addr + i);
+		buffer[i] = at ? *at : 0;
+	}
+	return buffer;
+}
+ECL_EXPORT const int64_t *GetBusRanges(int32_t bus)
+{
+	ECL_INVISIBLE static int64_t ranges[2 * 16];
+	if (bus != 0 || !has_bus()) return nullptr;
+	size_t n = 0;
+	for (auto const &m : g_memory)
+		if (m.words && n + 4 <= sizeof ranges / sizeof ranges[0])
+		{
+			ranges[n++] = m.address;
+			ranges[n++] = m.size;
+		}
+	ranges[n] = ranges[n + 1] = 0;
+	return ranges;
+}
 
 } // extern "C"

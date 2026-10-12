@@ -84,7 +84,8 @@ Mednafen is a numbered patch in `patches/`.
   files.
 - Lynx: the boot ROM, no game.
 - PC-FX: the BIOS (`pcfx.rom`), no game.
-- Virtual Boy: no game.
+- Virtual Boy: no game. The tests assemble a small program for it
+  (`tests/make-vb-program.py`), which is the only thing it has run.
 
 So the Saturn can be proven with games now. The other three need a game
 each from the owner before anything can be said of them beyond "it builds".
@@ -97,8 +98,8 @@ each from the owner before anything can be said of them beyond "it builds".
 | 2 | The same in the sandbox, with the Saturn's helper thread gone | The reference and the sandbox give the same digests, frame by frame; savestates | done 2026-10-12: 1,500 frames the same natively, in the sandbox, with a state saved and loaded every frame, with the state moved to a new sandbox, and after going back to a kept state |
 | 3 | Controllers and settings generated from Mednafen's descriptions; the package | Chimera's package checks; a project run by Chimera's engine | done 2026-10-12: 743 buttons and 232 axes over the four systems, 58 settings; Chimera's package checks pass (18 of 18); a project of Virtua Fighter Remix with its BIOS as firmware plays a movie in Chimera's engine and the movie's presses reach the game |
 | 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | waits for games |
-| 5 | Save data, lag frames, disc change, CHD | Tests for each | not started |
-| 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | not started |
+| 5 | Save data, lag frames, disc change, CHD | Tests for each | partly, 2026-10-12: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data. Not done: changing discs, CHD images |
+| 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | partly, 2026-10-12: the test script (`waterbox/run-gate.sh`, 30 tests) with a Virtual Boy program it assembles itself. Not done: the window test, Windows, the CI workflow, README |
 | 7 | Publishing | The owner's word | not started |
 
 ## What the first two steps found
@@ -144,5 +145,26 @@ each from the owner before anything can be said of them beyond "it builds".
   before the machine is built (patch 0005). The two files are mounted under
   names of this core's own, because Mednafen refuses a file named like one
   known BIOS that holds another.
-- **Not done yet**: memory for RAM Watch, lag frames, save data, changing
-  discs, CHD images, the Saturn's ST-V arcade board.
+- **Not done yet**: changing discs, CHD images, the Saturn's ST-V arcade
+  board.
+
+## What step 5 decided
+
+- **Lag frames**: each system says when its game code is handed a pad's
+  state (patch 0006). A frame without that is a lag frame.
+- **Memory**: the Virtual Boy's, the PC-FX's and the Lynx's RAM are memory
+  domains, from what the systems already tell Mednafen's cheat search. The
+  Saturn keeps its RAM as 16-bit words in the host's byte order, so a plain
+  view of it would show every pair of bytes swapped: its two work RAMs are
+  read through a bus ("System Bus"), at the console's own addresses
+  (0x00200000 and 0x06000000) and in the console's byte order. The video
+  chips' and the sound chip's memory are not on it yet.
+- **Save data** (the Saturn): the backup memory and the backup cartridge
+  stay in the machine's memory, and Mednafen's writing of save files is
+  turned off (patch 0007). Export Save Data writes `saturn.bkr` and
+  `saturn.bcr`, the files Mednafen itself would write, and a project's Save
+  data slot takes them back by extension. The PC-FX's and the Virtual Boy
+  cartridge's saves are not exported yet: there is no game to test with.
+- **The Virtual Boy test program** draws nothing. It counts in RAM and
+  copies the pad there, which is enough to compare the sandbox with the
+  reference, to test savestates and to test lag frames, on a CI runner.

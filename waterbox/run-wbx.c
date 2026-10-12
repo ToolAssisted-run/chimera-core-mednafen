@@ -129,6 +129,12 @@ static int core_domain_count(void) { return g_GetMemoryDomainCount(); }
 static const char *core_domain_name(int i) { return (const char *)g_GetMemoryDomainName(i); }
 static const uint8_t *core_domain_ptr(int i) { return (const uint8_t *)g_GetMemoryDomainPtr(i); }
 static int64_t core_domain_size(int i) { return g_GetMemoryDomainSize(i); }
+typedef uintptr_t (MB_GUEST_ABI *busrangesfn)(int32_t);
+typedef uintptr_t (MB_GUEST_ABI *busreadfn)(int32_t, int64_t, int32_t);
+static busrangesfn g_GetBusRanges;
+static busreadfn g_ReadBus;
+static const int64_t *core_bus_ranges(void) { return (const int64_t *)g_GetBusRanges(0); }
+static const uint8_t *core_bus_read(int64_t addr, int32_t len) { return (const uint8_t *)g_ReadBus(0, addr, len); }
 
 static void core_pre_frame(void)
 {
@@ -253,6 +259,8 @@ static void resolve_exports(void)
 	g_GetMemoryDomainName = (ptrfn_i)proc(g_host, "GetMemoryDomainName");
 	g_GetMemoryDomainPtr = (ptrfn_i)proc(g_host, "GetMemoryDomainPtr");
 	g_GetMemoryDomainSize = (i64fn_i)proc(g_host, "GetMemoryDomainSize");
+	g_GetBusRanges = (busrangesfn)proc(g_host, "GetBusRanges");
+	g_ReadBus = (busreadfn)proc(g_host, "ReadBus");
 }
 
 int main(int argc, char **argv)
@@ -308,6 +316,8 @@ int main(int argc, char **argv)
 		.domain_name = core_domain_name,
 		.domain_ptr = core_domain_ptr,
 		.domain_size = core_domain_size,
+		.bus_ranges = core_bus_ranges,
+		.bus_read = core_bus_read,
 		.pre_frame = core_pre_frame,
 		.save_count = core_save_count,
 		.save_name = core_save_name,
