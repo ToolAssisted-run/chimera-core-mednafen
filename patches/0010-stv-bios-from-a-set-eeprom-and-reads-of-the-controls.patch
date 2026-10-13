@@ -1,0 +1,110 @@
+The ST-V arcade board: its BIOS comes out of a set, its EEPROM is save data,
+and its reads of the controls are told.
+
+The ST-V is the Saturn's hardware as an arcade board, and Mednafen runs it as
+the Saturn system. Three things of it need a word from the frontend:
+
+- The BIOS. Mednafen reads it from a file of its own. MAME keeps the BIOS of
+  every region in one zip (stvbios.zip), and that is the file people have, so
+  the frontend is asked for the bytes first (MDFN_ChimeraFirmware) and the
+  file is read as before when it gives none. The Saturn's BIOS is not
+  changed: the frontend answers for the three ST-V settings only.
+- The EEPROM, where the board keeps its settings. It is told to the frontend
+  as a save memory ("seep"), as the backup memory already is, so Export Save
+  Data writes it and a savestate holds it. Mednafen's own loading of the file
+  at the start is kept.
+- The controls. A game reads the sticks, the buttons, the coin and the start
+  switches through the board's I/O chip and not through the Saturn's pad
+  ports, so a frame is not a lag frame when one of those is read.
+
+--- a/src/mednafen.h
++++ b/src/mednafen.h
+@@ -43,6 +43,11 @@
+ // the extension Mednafen saves it with ("bkr"). "words" as above; a file of
+ // such a memory holds the words high byte first.
+ void MDFN_ChimeraSaveMemory(const char* ext, void* memory, uint64 bytes, bool words);
++// A firmware file that is not a file of its own: the frontend fills "dest"
++// with the "bytes" bytes of the ROM that the setting "setting" names (an ST-V's
++// BIOS is one of several in a set of them), and returns false when it leaves
++// the file to be read as Mednafen always did.
++bool MDFN_ChimeraFirmware(const char* setting, uint8* dest, uint32 bytes);
+ #endif
+ 
+ // Points to a dynamically-allocated object, created with data from Emulated*.
+--- a/src/ss/ss.cpp
++++ b/src/ss/ss.cpp
+@@ -1441,12 +1441,18 @@
+ 
+  {
+   const std::string biospath = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, MDFN_GetSettingS(biospath_sname));
+-  FileStream BIOSFile(biospath, FileStream::MODE_READ);
++#if defined(CHIMERA_CORE)
++  // chimera: an ST-V's BIOS comes out of a set of them, which the frontend reads
++  if(!MDFN_ChimeraFirmware(biospath_sname, (uint8*)BIOSROM, 512 * 1024))
++#endif
++  {
++   FileStream BIOSFile(biospath, FileStream::MODE_READ);
+ 
+-  if(BIOSFile.size() != 524288)
+-   throw MDFN_Error(0, _("BIOS file \"%s\" is of an incorrect size."), MDFN_strhumesc(biospath).c_str());
++   if(BIOSFile.size() != 524288)
++    throw MDFN_Error(0, _("BIOS file \"%s\" is of an incorrect size."), MDFN_strhumesc(biospath).c_str());
+ 
+-  BIOSFile.read(BIOSROM, 512 * 1024);
++   BIOSFile.read(BIOSROM, 512 * 1024);
++  }
+   BIOS_SHA256 = sha256(BIOSROM, 512 * 1024);
+ 
+   if(MDFN_GetSettingB("ss.bios_sanity"))
+@@ -1615,6 +1621,8 @@
+   uint64 nv_size = 0;
+ 
+   MDFN_ChimeraSaveMemory("bkr", BackupRAM, sizeof(BackupRAM), false);
++  if(cart_type == CART_STV)
++   STVIO_ChimeraSaveMemory();
+   CART_GetNVInfo(&ext, &nv_ptr, &nv16, &nv_size);
+   if(ext)
+    MDFN_ChimeraSaveMemory(ext, nv_ptr, nv_size, nv16);
+--- a/src/ss/stvio.cpp
++++ b/src/ss/stvio.cpp
+@@ -365,6 +365,14 @@
+  s->write(tmp, sizeof(tmp));
+ }
+ 
++#if defined(CHIMERA_CORE)
++void STVIO_ChimeraSaveMemory(void)
++{
++ // 64 words, kept in a file high byte first (STVIO_SaveNV above)
++ MDFN_ChimeraSaveMemory("seep", eep.mem, sizeof(eep.mem), true);
++}
++#endif
++
+ void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8 A, uint8 V)
+ {
+  //printf("[IOGA] Write: %02x %02x\n", A, V);
+@@ -399,6 +407,11 @@
+  {
+   const size_t offs = A & 0x7;
+ 
++#if defined(CHIMERA_CORE)
++  // chimera: the game reads the players' controls, or the coin and start switches
++  if(offs <= 0x2 || offs == 0x5)
++   Mednafen::MDFN_ChimeraInputRead();
++#endif
+   ret = DataIn[offs];
+ 
+   if(!(DataDir & (1U << (offs))))
+--- a/src/ss/stvio.h
++++ b/src/ss/stvio.h
+@@ -34,6 +34,11 @@
+ 
+ void STVIO_LoadNV(Stream* s) MDFN_COLD;
+ void STVIO_SaveNV(Stream* s) MDFN_COLD;
++#if defined(CHIMERA_CORE)
++// chimera: tells the frontend of the board's EEPROM, a memory that outlives
++// the power switch
++void STVIO_ChimeraSaveMemory(void) MDFN_COLD;
++#endif
+ 
+ void STVIO_WriteIOGA(const sscpu_timestamp_t timestamp, uint8 A, uint8 V) MDFN_HOT;
+ uint8 STVIO_ReadIOGA(const sscpu_timestamp_t timestamp, uint8 A) MDFN_HOT;

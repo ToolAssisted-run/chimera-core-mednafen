@@ -23,7 +23,13 @@
 # BIOS (tests/roms-local/pcfx.rom). LYNX_GAME=<folder> holds a Lynx game, a .lnx
 # file (tests/games-local/lynx), and LYNX_BOOT is the Lynx's boot ROM
 # (tests/roms-local/lynxboot.img). VB_GAME=<folder> holds a Virtual Boy game,
-# a .vb file (tests/games-local/vb).
+# a .vb file (tests/games-local/vb). STV_GAME=<folder> holds a game of the
+# ST-V arcade board, a .zip of its ROM files as MAME names them
+# (tests/games-local/stv), and STV_BIOS is MAME's set of the board's BIOS
+# files (tests/roms-local/stvbios.zip). STV_GAME_UPRIGHT=<folder> holds an
+# ST-V game whose monitor stands on its side (tests/games-local/stv-shienryu)
+# and STV_GAME_HAMMER=<folder> one that is played with a hammer
+# (tests/games-local/stv-hammer).
 #
 # Needs the native build (meson setup build/meson-native ... && ninja) and
 # the sandboxed core (waterbox/setup-guest.sh && ninja -C build/meson-guest):
@@ -34,9 +40,9 @@
 # tests/make-vb-program.py assembles a small program for it, so the "vb:"
 # tests run everywhere: the processor runs, the pad reaches the program,
 # its reads of the pad are seen, a save file goes in and comes out, and the
-# sandbox gives the native build's results with savestates. The Saturn, PC-FX and Lynx tests need a game and
-# the console's BIOS or boot ROM, and the "vb-game:" tests a Virtual Boy
-# game; each says SKIP without its files.
+# sandbox gives the native build's results with savestates. The Saturn, PC-FX,
+# Lynx and ST-V tests need a game and the machine's BIOS or boot ROM, and the
+# "vb-game:" tests a Virtual Boy game; each says SKIP without its files.
 #
 # The ways a test passes on a broken thing (Chimera's docs/gates.md) that
 # these are written against: a machine that did nothing agrees with itself,
@@ -62,6 +68,10 @@ fxgame_chd="${PCFX_GAME_CHD:-$(ls "$root"/tests/games-local/pcfx-chd/*.chd 2> /d
 fxbios="${PCFX_BIOS:-$root/tests/roms-local/pcfx.rom}"
 lxgame="${LYNX_GAME:-$root/tests/games-local/lynx}"
 lxboot="${LYNX_BOOT:-$root/tests/roms-local/lynxboot.img}"
+svgame="${STV_GAME:-$root/tests/games-local/stv}"
+svgame_up="${STV_GAME_UPRIGHT:-$root/tests/games-local/stv-shienryu}"
+svgame_hammer="${STV_GAME_HAMMER:-$root/tests/games-local/stv-hammer}"
+svbios="${STV_BIOS:-$root/tests/roms-local/stvbios.zip}"
 vbgame="${VB_GAME:-$root/tests/games-local/vb}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -112,12 +122,14 @@ repeats() {
 			exit seen > 0 ? 0 : 1
 		}' "$1"
 }
-# save_round_trip <test> <machine> <slot> <game file> <exported folder> <ext> <label> <what>:
+# save_round_trip <test> <machine> <slot> <game file> <exported folder> <ext> <label> <what> [<frames>]:
 # a save file that came out, changed in the middle and given to a project,
 # comes out of that project as it went in. <label> is text the file's first
-# 16 bytes hold (the memory's own format label), or nothing.
+# 16 bytes hold (the memory's own format label), or nothing. The project runs
+# 300 frames, or <frames>: an arcade board's BIOS checks its memories as it
+# starts and mends what it finds changed, so those are read back at once.
 save_round_trip() {
-	rt_test="$1"; rt_machine="$2"; rt_slot="$3"; rt_game="$4"; rt_from="$5"; rt_ext="$6"; rt_magic="$7"; rt_what="$8"
+	rt_test="$1"; rt_machine="$2"; rt_slot="$3"; rt_game="$4"; rt_from="$5"; rt_ext="$6"; rt_magic="$7"; rt_what="$8"; rt_frames="${9:-300}"
 	rt_file="$rt_from/$rt_machine.$rt_ext"
 	if [ ! -s "$rt_file" ]; then report "$rt_test" FAIL "no $rt_what was exported"; return; fi
 	mkdir -p "$work/$rt_test-mine" "$work/$rt_test-out"
@@ -130,7 +142,8 @@ open(sys.argv[2], "wb").write(b)
 PY
 	folder "$rt_test" "{\"machine\":\"$rt_machine\"}" "$rt_slot" "$rt_game" "$work/$rt_test-mine/mine.$rt_ext"
 	[ "$rt_machine" = pcfx ] && ln -sf "$fxbios" "$work/$rt_test/pcfx.rom"
-	box "$rt_test" "$rt_test" --frames 300 --report 300 --savedata-out "$work/$rt_test-out"
+	[ "$rt_machine" = stv ] && ln -sf "$svbios" "$work/$rt_test/stvbios.zip"
+	box "$rt_test" "$rt_test" --frames "$rt_frames" --report "$rt_frames" --savedata-out "$work/$rt_test-out"
 	check "$rt_test" "$rt_what goes out as a file of $(wc -c < "$rt_file") bytes; a changed copy given to a project comes out as it went in" \
 		sh -c "head -c 16 '$rt_file' | grep -q -a '$rt_magic' && cmp -s '$work/$rt_test-mine/mine.$rt_ext' '$work/$rt_test-out/$rt_machine.$rt_ext' && ! cmp -s '$rt_file' '$work/$rt_test-out/$rt_machine.$rt_ext'"
 }
@@ -488,6 +501,97 @@ else
 	done
 fi
 
+# ------------------------------------------------- the ST-V arcade board, with a game
+svzip="$(ls "$svgame"/*.zip 2> /dev/null | head -1)"
+if [ -n "$svzip" ] && [ -f "$svbios" ]; then
+	folder sv '{"machine":"stv"}' romset "$svzip"; ln -sf "$svbios" "$work/sv/stvbios.zip"
+	# a coin, Start, Button 1 three times, then the stick and the three buttons
+	svrun="--frames 3000 --report 50 --press 26:1500:5 --press 4:1700:5 --press 5:1900:5 --press 5:2100:5 --press 5:2300:5 --press 3:2500:120 --press 5:2650:10 --press 6:2700:10 --press 7:2750:10"
+	mkdir -p "$work/sv-save"
+	nat sv-idle sv --frames 3000 --report 50
+	nat sv-coin sv --frames 3000 --report 50 --press 26:1500:5
+	nat sv sv $svrun --list-panel --savedata-out "$work/sv-save"
+	box sv-box sv $svrun
+	for n in sv sv-idle sv-coin sv-box; do stream "$work/$n.out" > "$work/$n.stream"; done
+	pictures="$(awk '{print $7}' "$work/sv.stream" | sort -u | wc -l)"
+	check "stv:runs" "the game is found in its ROM set, the board starts from the BIOS set and the game runs: $pictures different pictures in 60 reports" [ "$pictures" -gt 5 ]
+	check "stv:coin" "a coin changes the run (the idle run's digests differ)" differ "$work/sv-coin.stream" "$work/sv-idle.stream"
+	check "stv:pad" "Start, the stick and the buttons change the run from the one with only the coin" differ "$work/sv.stream" "$work/sv-coin.stream"
+	check "stv:sandbox" "native and sandbox print the same $(wc -l < "$work/sv.stream") digests of RAM, picture and sound, with presses" \
+		same "$work/sv.stream" "$work/sv-box.stream"
+	check "stv:controls" "the cabinet's 26 buttons are live: two players' sticks, six buttons and Start, Test, Service, Pause and Coin" \
+		[ "$(grep -c "^panel .* active\$" "$work/sv.out")" = 26 ]
+	lag="$(field "$work/sv.out" lag)"
+	check "stv:lag" "lag frames are counted ($lag of 3000), and not on every frame" [ "${lag:-0}" -gt 0 -a "${lag:-0}" -lt 3000 ]
+	box sv-rerecord sv $svrun --rerecord
+	box sv-session sv $svrun --session
+	box sv-rewind sv --frames 4000 --report 5 --press 26:1500:5 --press 4:1700:5 --press 5:1900:5 --rewind
+	stream "$work/sv-rerecord.out" > "$work/sv-rerecord.stream"
+	stream "$work/sv-session.out" > "$work/sv-session.stream"
+	check "stv:state-every-frame" "a state saved and loaded every frame changes nothing" same "$work/sv-box.stream" "$work/sv-rerecord.stream"
+	check "stv:state-other-box" "a state moved to a new sandbox half way changes nothing" same "$work/sv-box.stream" "$work/sv-session.stream"
+	check "stv:state-rewind" "a state kept at frame 2000 and loaded at 3000: the frames after the load repeat those after the save" \
+		repeats "$work/sv-rewind.out" 2000 3000 1000 5
+	folder sv-na '{"machine":"stv","stv.region":"na"}' romset "$svzip"; ln -sf "$svbios" "$work/sv-na/stvbios.zip"
+	nat sv-na sv-na --frames 3000 --report 50
+	stream "$work/sv-na.out" > "$work/sv-na.stream"
+	check "stv:region" "with the Region setting on North America the board starts from another BIOS of the set: the game runs and its digests differ" \
+		sh -c "[ \"\$(awk '{print \$7}' '$work/sv-na.stream' | sort -u | wc -l)\" -gt 5 ] && ! cmp -s '$work/sv-na.stream' '$work/sv-idle.stream'"
+	check "stv:save-data" "the board's backup memory and its settings memory go out as files of 32768 and 128 bytes, and the backup memory holds what the game wrote" \
+		sh -c "[ \"\$(tr -d '\\0' < '$work/sv-save/stv.bkr' | wc -c)\" -gt 16 ] && [ \"\$(wc -c < '$work/sv-save/stv.bkr')\" = 32768 ] && [ \"\$(wc -c < '$work/sv-save/stv.seep')\" = 128 ]"
+	save_round_trip stv:save-backup stv romset "$svzip" "$work/sv-save" bkr "" "the backup memory" 1
+	save_round_trip stv:save-settings stv romset "$svzip" "$work/sv-save" seep "SEGA" "the settings memory" 1
+	folder sv-nobios '{"machine":"stv"}' romset "$svzip"
+	nat sv-nobios sv-nobios --frames 1
+	check "stv:firmware-missing" "without its BIOS set the board is refused, by the file's name" \
+		grep -q 'Init failed.*stvbios\.zip' "$work/sv-nobios.out" "$work/sv-nobios.err"
+	mkdir -p "$work/sv-nogame-src"
+	python3 -c "
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1], 'w') as z: z.writestr('readme.txt', 'not a game')
+with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z: z.writestr('other.ic8', bytes(524288))
+" "$work/sv-nogame-src/notagame.zip" "$work/sv-otherbios.zip"
+	folder sv-nogame '{"machine":"stv"}' romset "$work/sv-nogame-src/notagame.zip"; ln -sf "$svbios" "$work/sv-nogame/stvbios.zip"
+	nat sv-nogame sv-nogame --frames 1
+	check "stv:not-a-game" "a zip that holds no ST-V game is refused, and the message says what a ROM set is" \
+		grep -q 'Init failed.*No file of this ROM set' "$work/sv-nogame.out" "$work/sv-nogame.err"
+	folder sv-otherbios '{"machine":"stv"}' romset "$svzip"; ln -sf "$work/sv-otherbios.zip" "$work/sv-otherbios/stvbios.zip"
+	nat sv-otherbios sv-otherbios --frames 1
+	check "stv:bios-by-contents" "a BIOS set without the region's BIOS is refused, and the message names the file MAME calls it" \
+		grep -q 'Init failed.*does not hold the BIOS.*epr-20091\.ic8' "$work/sv-otherbios.out" "$work/sv-otherbios.err"
+else
+	for t in runs coin pad sandbox controls lag state-every-frame state-other-box state-rewind region save-data save-backup save-settings firmware-missing not-a-game bios-by-contents; do
+		report "stv:$t" SKIP "no ST-V game with the board's BIOS set (STV_GAME, STV_BIOS)"
+	done
+fi
+svzip_up="$(ls "$svgame_up"/*.zip 2> /dev/null | head -1)"
+if [ -n "$svzip_up" ] && [ -f "$svbios" ]; then
+	folder sv-up '{"machine":"stv"}' romset "$svzip_up"; ln -sf "$svbios" "$work/sv-up/stvbios.zip"
+	svuprun="--frames 3000 --report 100 --press 26:2000:5 --press 4:2200:5 --press 5:2400:300"
+	nat sv-up sv-up $svuprun
+	box sv-up-box sv-up $svuprun
+	stream "$work/sv-up.out" > "$work/sv-up.stream"; stream "$work/sv-up-box.out" > "$work/sv-up-box.stream"
+	size="$(field "$work/sv-up.out" vid)"
+	check "stv:upright" "a game whose monitor stands on its side is shown turned: its picture is $size, taller than wide, and the sandbox draws what the native build does" \
+		sh -c "[ '${size%x*}' -lt '${size#*x}' ] && cmp -s '$work/sv-up.stream' '$work/sv-up-box.stream'"
+else
+	report "stv:upright" SKIP "no ST-V game with an upright monitor (STV_GAME_UPRIGHT) with the board's BIOS set"
+fi
+svzip_hm="$(ls "$svgame_hammer"/*.zip 2> /dev/null | head -1)"
+if [ -n "$svzip_hm" ] && [ -f "$svbios" ]; then
+	folder sv-hm '{"machine":"stv"}' romset "$svzip_hm"; ln -sf "$svbios" "$work/sv-hm/stvbios.zip"
+	# a coin, then the hammer at the middle of the table, twice
+	svhmcoin="--frames 4800 --report 100 --axis 0:32768:0:4800 --axis 1:32768:0:4800 --press 26:4000:5"
+	nat sv-hm-coin sv-hm $svhmcoin
+	nat sv-hm sv-hm $svhmcoin --press 11:4300:4 --press 11:4500:4 --list-panel
+	box sv-hm-box sv-hm $svhmcoin --press 11:4300:4 --press 11:4500:4
+	for n in sv-hm sv-hm-coin sv-hm-box; do stream "$work/$n.out" > "$work/$n.stream"; done
+	check "stv:hammer" "a game played with a hammer has the hammer and no sticks ($(grep -c "^panel .* active\$" "$work/sv-hm.out") buttons and $(grep -c "^axis .* active\$" "$work/sv-hm.out") axes live); a hit changes the run, and the sandbox gives the native build's digests" \
+		sh -c "[ \"\$(grep -c '^panel .* active\$' '$work/sv-hm.out')\" = 5 ] && [ \"\$(grep -c '^axis .* active\$' '$work/sv-hm.out')\" = 2 ] && ! cmp -s '$work/sv-hm.stream' '$work/sv-hm-coin.stream' && cmp -s '$work/sv-hm.stream' '$work/sv-hm-box.stream'"
+else
+	report "stv:hammer" SKIP "no ST-V game played with a hammer (STV_GAME_HAMMER) with the board's BIOS set"
+fi
+
 # ------------------------------------------------- the Virtual Boy, with a game
 vbrom="$(ls "$vbgame"/*.vb "$vbgame"/*.vboy 2> /dev/null | head -1)"
 if [ -n "$vbrom" ]; then
@@ -597,8 +701,22 @@ print('saturn_jp.bin' if 'starts with the Japanese BIOS' in n else 'saturn_na_eu
 	else
 		report "engine:lynx" SKIP "no Lynx game with the console's boot ROM"
 	fi
+	if [ -n "$svzip" ] && [ -f "$svbios" ]; then
+		python3 "$mk" "$pkg" "$work/sv.chimeraProject" 2400 machine=stv "panel=$work/sv.out" \
+			"press=Coin:1500:5" "press=P1 Start:1700:5" "press=P1 Button 1:1900:5" "firmware=stvbios.zip=$svbios" -- "romset=$svzip" > "$work/sv.project.log" 2>&1
+		python3 "$mk" "$pkg" "$work/sv-idle.chimeraProject" 2400 machine=stv "panel=$work/sv.out" \
+			"firmware=stvbios.zip=$svbios" -- "romset=$svzip" >> "$work/sv.project.log" 2>&1
+		"$engine" --project "$work/sv.chimeraProject" "$pkg" --files "$svgame" --firmware "stvbios.zip=$svbios" \
+			--screenshot "2399=$work/sv.tga" > "$work/sv.engine" 2>&1
+		"$engine" --project "$work/sv-idle.chimeraProject" "$pkg" --files "$svgame" --firmware "stvbios.zip=$svbios" \
+			--screenshot "2399=$work/sv-idle.tga" > "$work/sv-idle.engine" 2>&1
+		check "engine:stv" "an ST-V project with its ROM set and the BIOS set as firmware plays a 2400-frame movie in Chimera's engine, and the movie's coin and Start change the last picture" \
+			sh -c "grep -q '^frames=2400' '$work/sv.engine' && grep -q '^frames=2400' '$work/sv-idle.engine' && [ -s '$work/sv.tga' ] && ! cmp -s '$work/sv.tga' '$work/sv-idle.tga'"
+	else
+		report "engine:stv" SKIP "no ST-V game with the board's BIOS set"
+	fi
 else
-	for t in vb saturn saturn-bus saturn-chd pcfx lynx; do
+	for t in vb saturn saturn-bus saturn-chd pcfx lynx stv; do
 		report "engine:$t" SKIP "set CHIMERA_ROOT to a Chimera checkout with build/meson-linux/chimera-run and this core's package (waterbox/build-package.sh -r <it>)"
 	done
 fi

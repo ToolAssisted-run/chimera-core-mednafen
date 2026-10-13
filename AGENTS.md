@@ -1,7 +1,8 @@
 # AGENTS.md - Mednafen core for Chimera
 
 This repository builds four systems of Mednafen (https://mednafen.github.io/)
-- the Sega Saturn, the Virtual Boy, the PC-FX and the Atari Lynx - as a core
+- the Sega Saturn, the Virtual Boy, the PC-FX and the Atari Lynx - and the
+Saturn's arcade board, the Sega ST-V, as a core
 for Chimera (https://github.com/ToolAssisted-run/chimera), a frontend for
 tool-assisted speedruns. It produces one file, `mednafen.chimeraCore`:
 Mednafen's emulation compiled to run inside Chimera's sandbox (miniBox), one
@@ -34,7 +35,8 @@ design log, with what was decided, why, and what was measured.
   (settings, file names, messages), answered. `waterbox/frontend.h` is what
   it asks of `cinterface.cpp`.
 - `waterbox/machines.json` - written by hand: Chimera's names for the
-  systems, which port is which player, control names where Mednafen's would
+  machines (the four systems, and the ST-V, which Mednafen runs as the
+  Saturn system with a ROM set for a game), which port is which player, control names where Mednafen's would
   collide, and the settings a project may set, with their descriptions.
 - `waterbox/gen-config.py` - writes `panel.inc` (the controls, compiled into
   the core), `waterbox.config` and `default_keybinds.json` from Mednafen's
@@ -101,12 +103,18 @@ nothing: if you do not have the files, say so in your report.
   threads are patched out (0001, 0002); do not add one.
 - **The machine's state is its memory.** A savestate is the sandbox's copy
   of the core's memory, so nothing a game can change may live in a file or
-  in memory marked invisible. Save data stays in memory (patches 0007 and
-  0008). An
+  in memory marked invisible. Save data stays in memory (patches 0007,
+  0008 and 0010). An
   open file's position is NOT in a savestate: seek before every read (patch
   0004), and test with `run-wbx --rewind`, which is the test that finds it.
 - **Files are found by plain name.** The sandbox has no folders: `name`, not
-  `./name` (patch 0003).
+  `./name` (patch 0003). Mednafen's zip reader is the other way round: its
+  names start at the zip's root, `/name`.
+- **An arcade board's game is a zip of ROM files** (`load_rom_set` in
+  `cinterface.cpp`), read with Mednafen's own zip reader, and its BIOS is
+  taken out of MAME's set `stvbios.zip` by checksum (patch 0010). A coin is
+  an event for Mednafen: the core makes one each time the Coin control goes
+  down, and remembers what the control was a frame ago in its own memory.
 - **No BIOS, no game, no key** is committed, uploaded to CI or attached to
   an issue. Test content stays under `tests/roms-local` and
   `tests/games-local`, and is copied there, never linked from where the

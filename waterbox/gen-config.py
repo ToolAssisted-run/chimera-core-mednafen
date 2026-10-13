@@ -4,7 +4,7 @@
     build/meson-native/run-native --describe > describe.json
     waterbox/gen-config.py describe.json [out folder]
 
-`run-native --describe` prints, for each of the four systems, every port,
+`run-native --describe` prints, for each of the machines, every port,
 every device a port takes, every button, axis and switch of each device, and
 every setting, as Mednafen's source defines them. machines.json holds what is
 written by hand: Chimera's names for the systems, which port is which player,
@@ -85,9 +85,15 @@ def controls_of(system, hand):
     family = hand.get("family", {})
     only_on = hand.get("deviceOnlyOn", {})
     skip = set(hand.get("skip", []))
+    # a machine that is another's hardware with fewer sockets (the ST-V is
+    # the Saturn's) names the ports and the devices it has; the rest are not its
+    its_ports = hand.get("ports")
+    its_devices = hand.get("devices")
     used = set()
 
     for pi, port in enumerate(system["ports"]):
+        if its_ports is not None and port["short"] not in its_ports:
+            continue
         if port["short"] not in hand["players"]:
             fail("%s: machines.json says nothing of port %s" % (system["machine"], port["short"]))
         player = hand["players"][port["short"]]
@@ -95,9 +101,14 @@ def controls_of(system, hand):
         for dev in port["devices"]:
             if dev["short"] in only_on and port["short"] not in only_on[dev["short"]]:
                 continue
+            if its_devices is not None and dev["short"] not in its_devices:
+                continue
             fam = family.get(dev["short"], "")
             seen = {}
-            for inp in dev["inputs"]:
+            # Mednafen's table is in the order of the device's wires; the order
+            # it asks a user to set the buttons up in is the one a person expects
+            inputs = sorted(dev["inputs"], key=lambda i: i["order"]) if hand.get("inSetupOrder") else dev["inputs"]
+            for inp in inputs:
                 kind = inp["type"]
                 if kind in ("status", "padding", "rumble", "bytes"):
                     continue
@@ -179,6 +190,12 @@ def controls_of(system, hand):
         for sname, bare in (("disc_previous", "Previous Disc"), ("disc_next", "Next Disc"), ("disc_swap", "Disc Swap")):
             buttons.append({"name": bare, "bare": bare, "family": "", "player": 0, "port": -1, "min": 0, "max": 1, "neutral": 0,
                             "bindings": [{"device": "", "input": -1, "sname": sname, "mode": "d", "label": ""}]})
+
+    if system.get("arcade"):
+        # the coin switch, which is no device's: Mednafen takes a coin as an
+        # event, and the core makes one each time this goes down
+        buttons.append({"name": "Coin", "bare": "Coin", "family": "", "player": 0, "port": -1, "min": 0, "max": 1, "neutral": 0,
+                        "bindings": [{"device": "", "input": -1, "sname": "coin", "mode": "c", "label": ""}]})
 
     for group, what in ((buttons, "buttons"), (axes, "axes")):
         seen = {}
@@ -339,10 +356,13 @@ def main():
         # what is plugged into each port a player has, when there is a choice
         only_on = m.get("deviceOnlyOn", {})
         for port in system["ports"]:
+            if m.get("ports") is not None and port["short"] not in m["ports"]:
+                continue
             player = m["players"][port["short"]]
             devices = [d["short"] for d in port["devices"]
                        if not (d["short"] in only_on and port["short"] not in only_on[d["short"]])]
-            if not player or len(devices) < 2:
+            # a cabinet's controls are the game's own: nothing to choose
+            if not player or len(devices) < 2 or m.get("deviceFromGame"):
                 continue
             if port["default"] not in devices:
                 fail("%s: the default device of %s is not among its devices" % (m["machine"], port["short"]))
@@ -354,6 +374,15 @@ def main():
             })
         for decl in m.get("settings", []):
             settings.append(setting_of(decl, system, m["machine"]))
+        # a setting of this core's own, which Mednafen does not have
+        for decl in m.get("ownSettings", []):
+            settings.append(dict(decl, when=[m["machine"]]))
+        # a setting an earlier machine declared, which is this machine's too
+        for name in m.get("shareSettings", []):
+            found = [s for s in settings if s["name"] == name and "when" in s]
+            if not found:
+                fail("%s: shares the setting %s, which no machine before it declared" % (m["machine"], name))
+            found[0]["when"].append(m["machine"])
 
         machines.append({
             "id": m["id"], "label": m["label"], "when": [m["machine"]],
@@ -376,7 +405,7 @@ def main():
     settings += hand.get("commonSettings", [])
 
     with open(os.path.join(out, "panel.inc"), "w") as f:
-        f.write("// The controls of the four systems: one row for each input of each device\n"
+        f.write("// The controls of the machines: one row for each input of each device\n"
                 "// that a control of the package stands for. Written by gen-config.py from\n"
                 "// run-native --describe and machines.json; cinterface.cpp compiles it in.\n"
                 "// Do not edit.\n"
@@ -410,10 +439,10 @@ def main():
         "systemNames": system_names,
         "settings": settings,
         "_discs_note": "A machine that takes discs has three controls of the drive. Previous Disc and Next Disc move a selector over the project's discs and touch nothing. Disc Swap is the lid: up for as long as it is held, and closing on the selected disc, or on the next one when the selector was not moved.",
-        "_machines_note": "ONE core.wbx, four systems. What they share is above; what makes them different machines is below, and the 'machine' setting picks one. A machine's controls are every input of every device its ports take, by Mednafen's own tables: the ones of what is plugged in are shown and the rest leave the input roll.",
+        "_machines_note": "ONE core.wbx, four systems and five machines: the ST-V arcade board is the Saturn's hardware and Mednafen runs it as the same system. What they share is above; what makes them different machines is below, and the 'machine' setting picks one. A machine's controls are every input of every device its ports take, by Mednafen's own tables: the ones of what is plugged in are shown and the rest leave the input roll.",
         "machineSetting": "machine",
         "machines": machines,
-        "_firmware_note": "The firmware that does not depend on the game. Which BIOS a Saturn starts with depends on the disc's region, so the core says it for each game (gameFirmware): saturn_jp.bin or saturn_na_eu.bin, and the ROM cartridge of the two games sold with one.",
+        "_firmware_note": "The firmware that does not depend on the game. Which BIOS a Saturn starts with depends on the disc's region, so the core says it for each game (gameFirmware): saturn_jp.bin or saturn_na_eu.bin, and the ROM cartridge of the two games sold with one. An ST-V's BIOS is taken out of MAME's set of them, stvbios.zip.",
         "firmware": hand.get("firmware", []),
     }
     with open(os.path.join(out, "waterbox.config"), "w") as f:

@@ -46,9 +46,9 @@ for line in io.lines(jobPath) do
 end
 meta.metaPath = job.meta
 
--- one of this core's four systems
+-- one of this core's five machines
 local sysid = emu.getsystemid()
-if sysid ~= "SAT" and sysid ~= "VB" and sysid ~= "PCFX" and sysid ~= "LYNX" then
+if sysid ~= "SAT" and sysid ~= "VB" and sysid ~= "PCFX" and sysid ~= "LYNX" and sysid ~= "STV" then
 	finish("ERROR", "wrong system id: " .. tostring(sysid))
 end
 if emu.getcorename() ~= "Mednafen" then

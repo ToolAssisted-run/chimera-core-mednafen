@@ -12,10 +12,11 @@
 #    the core which BIOS the disc needs and takes it from Chimera's
 #    firmware, and without that firmware it refuses the project and names
 #    the file;
-#  - with a PC-FX game and the console's BIOS (PCFX_GAME, PCFX_BIOS) and with
-#    a Lynx game and the console's boot ROM (LYNX_GAME, LYNX_BOOT): the
+#  - with a PC-FX game and the console's BIOS (PCFX_GAME, PCFX_BIOS), with
+#    a Lynx game and the console's boot ROM (LYNX_GAME, LYNX_BOOT) and with
+#    an ST-V game and the board's BIOS set (STV_GAME, STV_BIOS): the
 #    project opens with that file from Chimera's firmware and runs in the
-#    window, with a picture of the console's size.
+#    window, with a picture of the machine's size.
 #
 # Usage: tests/run-frontend.sh --chimera-root <chimera checkout> [--frames N] [--keep]
 #   --keep   leave the work folder (logs, configurations, projects) and say where it is
@@ -48,6 +49,8 @@ fxgame="${PCFX_GAME:-$here/games-local/pcfx}"
 fxbios="${PCFX_BIOS:-$here/roms-local/pcfx.rom}"
 lxgame="${LYNX_GAME:-$here/games-local/lynx}"
 lxboot="${LYNX_BOOT:-$here/roms-local/lynxboot.img}"
+svgame="${STV_GAME:-$here/games-local/stv}"
+svbios="${STV_BIOS:-$here/roms-local/stvbios.zip}"
 
 emu_exe="$chimera_root/build/Chimera.exe"
 package="$chimera_root/build/Cores/mednafen.chimeraCore"
@@ -229,6 +232,12 @@ if [ -n "$lnx" ] && [ -f "$lxboot" ]; then
 	window_machine lynx "Lynx" lynx cart "$lnx" lynxboot.img "$lxboot" 160 102
 else
 	report "window:lynx" SKIP "needs a Lynx game (LYNX_GAME) and the console's boot ROM (LYNX_BOOT)"
+fi
+svzip="$(ls "$svgame"/*.zip 2> /dev/null | head -1)"
+if [ -n "$svzip" ] && [ -f "$svbios" ]; then
+	window_machine stv "Sega ST-V" stv romset "$svzip" stvbios.zip "$svbios" 320 224
+else
+	report "window:stv" SKIP "needs an ST-V game (STV_GAME) and the board's BIOS set (STV_BIOS)"
 fi
 
 echo

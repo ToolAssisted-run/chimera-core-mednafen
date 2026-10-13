@@ -3,8 +3,8 @@ name: chimera waterbox core
 # Builds the core from a fresh clone, tests it, and publishes the package.
 #
 # What is tested here is much less than what is tested before a push. No BIOS
-# and no game may be put on a runner, and three of the four systems need one
-# or the other. The Virtual Boy needs no BIOS, and the tests assemble a small
+# and no game may be put on a runner, and every machine but the Virtual Boy
+# needs one or the other. The Virtual Boy needs no BIOS, and the tests assemble a small
 # program for it (tests/make-vb-program.py), so here:
 #   - Mednafen's source is the pinned archive with the patches applied, and
 #     the package's declarations are what the generator writes;

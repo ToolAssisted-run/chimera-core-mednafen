@@ -149,9 +149,9 @@ dated 2026-10-12 say so of the other three.
   before the machine is built (patch 0005). The two files are mounted under
   names of this core's own, because Mednafen refuses a file named like one
   known BIOS that holds another.
-- **Not done**: the Saturn's ST-V arcade board. Mednafen 1.32 has it, and
-  its controls are left out of the package. No ST-V game was at hand
-  (2026-10-13), and a machine that has run nothing is not added.
+- **The Saturn's ST-V arcade board** was left out at this step, for want of
+  a game. It was added on 2026-10-13 as a machine of its own: see "The ST-V
+  arcade board" below.
 
 ## What step 5 decided
 
@@ -305,5 +305,110 @@ chdman 0.264 (24 tracks, the first of them audio and the second the data),
 it gives in the sandbox the 60 digests the cue sheet gives natively, over
 3,000 frames with presses, into the opening film (`pcfx:chd`).
 
-What is still not done: the ST-V arcade board (no game), and a run on a CI
-runner (the repository is not published).
+What was still not done then: the ST-V arcade board (no game), and a run on
+a CI runner (the repository is not published).
+
+## The ST-V arcade board (2026-10-13)
+
+The owner gave a set of ST-V games (MAME's ROM sets, each a zip, and
+`stvbios.zip`). The ST-V is the Saturn's hardware as an arcade board, and
+Mednafen 1.32 runs it as the Saturn system. It is a fifth machine of this
+core, `stv`.
+
+**What was decided, and why**
+
+- **A game is its ROM set, a zip.** That is the file people have. Mednafen
+  knows a game by the name and the first 128 bytes of one of its ROM files
+  (`ss/db.cpp`, 64 games) and reads the others by the names in its table.
+  The core opens the zip with Mednafen's own zip reader, asks Mednafen of
+  each file whether a game starts with it, and loads the one that does. The
+  zip's own name does not matter. The zip has to hold every file of the
+  game: a clone's set that leaves out its parent's files is not read, and
+  the message says so. (Reading a parent's zip as well was left out: none of
+  the 101 sets tried needed it.)
+- **The BIOS is taken out of `stvbios.zip`**, which is firmware for this
+  machine. MAME's names for the files in it have changed (`20091.bin`,
+  `epr-20091.ic8`), so a file is known by its CRC-32: Japan 59ed40f4, then
+  d0e0889d, then 2672f9d8; North America d1be2adf; Europe f7722da3. Mednafen
+  read the BIOS from a file of its own; patch 0010 asks the core first.
+- **The region is one setting of this core's, `stv.region`**: `game` (the
+  region Mednafen's table gives the game: Japan for most, North America for
+  Die Hard Arcade, Europe for Critter Crusher), `jp`, `na` or `eu`. Mednafen
+  has the Saturn's two settings for it; one setting with four values is what
+  a cabinet has.
+- **The controls are the game's.** Mednafen says which devices a game uses
+  as it loads it: two pads, or the hammer of Tatacot and Critter Crusher
+  (Mednafen's light gun). There is no setting for a port. The pad's buttons
+  are named Button 1 to 6 (the Saturn pad's A, B, C, X, Y, Z), in the order
+  Mednafen sets them up in. The pad's two shoulder buttons are left out: one
+  does nothing on this board, the other is a shortcut for three buttons at
+  once in Radiant Silvergun.
+- **A coin is an event in Mednafen**, not a switch. The core gives one coin
+  each time the Coin control goes down, and what the control was a frame ago
+  is in the core's memory, so it is in a savestate. Mednafen has one coin
+  slot.
+- **A game whose monitor stands on its side** (Shienryu) is turned by the
+  core, a quarter turn to the left, and the picture's shape is turned with
+  it.
+- **Lag frames**: a game reads its controls through the board's I/O chip,
+  not through the Saturn's pad ports, so those reads are told (patch 0010).
+  The Saturn's pad ports are still counted; on this board they carry the
+  EEPROM, so a frame that only touches the EEPROM is not counted as lag.
+- **Save data**: the backup memory (`stv.bkr`, 32 KB: scores and operator
+  settings) and the board's EEPROM (`stv.seep`, 128 bytes: the board's own
+  settings; patch 0010). The BIOS checks both as it starts and mends what it
+  finds changed, so the tests read a given file back after one frame.
+- **Not given a file extension.** A `.zip` opened with no project could be
+  any arcade core's, so the ST-V is reached through a project.
+
+**What was measured**
+
+- Virtua Fighter Remix: the BIOS's warning screens, the demonstration, a
+  coin (CREDIT 1), Start, the character choice and a fight. 3,000 frames
+  with presses give the same 60 digests of RAM, picture and sound natively
+  and in the sandbox; a state saved and loaded every frame, a state moved to
+  a new sandbox, and a state kept at frame 2,000 and loaded at 3,000 change
+  nothing. 47 of 3,000 frames are lag frames.
+- Die Hard Arcade starts from the North American BIOS, in English, takes a
+  coin and plays. Virtua Fighter Remix with the Region setting on North
+  America or Europe starts from those BIOS files.
+- Shienryu is shown upright (240x330) and plays. Tatacot takes a coin, and
+  hits of the hammer choose a game and play it.
+- The Test button opens the board's test menu.
+- **All 101 ROM sets of the owner's archive** were given to the native
+  build for 3,600 frames with a coin and Start. 61 hold a game Mednafen
+  knows; 40 are refused with a message (39 are games that are not in
+  Mednafen's table, most of them the Print Club photo machines and clones;
+  one, Dancing Fever Gold, lacks a file). One picture of each of the 61 was
+  looked at, at frame 3,600:
+  - 47 show the game or its demonstration;
+  - 2 run with a wrong picture: Decathlete, both versions (Mednafen marks
+    them broken: the game's decompression chip is not emulated);
+  - 7 show the game's own error screen, asking for the operator: Pro
+    Mahjong Kiwame S, Microman Battle Charge, Hashire Patrol Car, Sky
+    Challenger, Stress Busters, Nerae Super Goal and Technical Bowling
+    (machines with a card dispenser, a prize hopper or a printer);
+  - 4 show nothing: Magical Zunou Power, Soreyuke Anpanman Crayon Kids,
+    Steep Slope Sliders and Yatterman Plus;
+  - Winter Heat was between two scenes.
+  Mednafen's table marks 22 of its 64 games as broken: for a protection
+  chip, a special controller or a sound board it does not emulate. Some of
+  those still show their demonstration. A game that shows its demonstration
+  has not been shown to play to its end: Astra Superstars, Final Fight
+  Revenge and Touryuu Densetsu Elan Doree, which use that chip, were not
+  played further.
+- Windows: Chimera's headless runner played 2,400 frames of Virtua Fighter
+  Remix with a coin and Start; the last picture and both save files are
+  byte for byte the Linux runner's. Chimera's window on Windows was not
+  tried with this machine (the window test passes on Linux).
+
+Counts: the test script 88 passed, 0 failed, 0 skipped with every file and
+Chimera's engine (19 of them the ST-V's); the window test 7 passed;
+Chimera's package checks 18 of 18. The new tests were broken once and seen
+to fail: with no coin given, the picture not turned, the controls not taken
+from the game, the Region setting not read, and the save files not found,
+`stv:coin`, `stv:upright`, `stv:hammer`, `stv:region`, `stv:save-backup`
+and `stv:save-settings` failed.
+
+What is still not done: a run on a CI runner (the repository is not
+published).

@@ -18,6 +18,9 @@
 #include <mednafen/cdrom/CDInterface.h>
 #include <mednafen/cdrom/CDInterface_ST.h>
 #include <mednafen/cdrom/CDAccess.h>
+#include <mednafen/MemoryStream.h>
+#include <mednafen/compress/ZIPReader.h>
+#include <mednafen/hash/crc.h>
 
 #include <algorithm>
 #include <cmath>
@@ -62,13 +65,18 @@ struct system_entry
 {
 	const char *machine;          // the package's "machine" value
 	const MDFNGI *gi;
+	const char *slot;             // the project's slot its games are in
 	bool disc;                    // its games are discs
+	bool arcade;                  // an arcade board: coins, and the game's own controls
 };
+// The ST-V is the Saturn's hardware as an arcade board, and Mednafen runs it
+// as the same system: its games are sets of ROM files, not discs.
 const system_entry kSystems[] = {
-	{ "saturn", &EmulatedSS, true },
-	{ "virtualboy", &EmulatedVB, false },
-	{ "pcfx", &EmulatedPCFX, true },
-	{ "lynx", &EmulatedLynx, false },
+	{ "saturn", &EmulatedSS, "disc", true, false },
+	{ "virtualboy", &EmulatedVB, "cart", false, false },
+	{ "pcfx", &EmulatedPCFX, "disc", true, false },
+	{ "lynx", &EmulatedLynx, "cart", false, false },
+	{ "stv", &EmulatedSS, "romset", false, true },
 };
 const system_entry *g_entry;
 
@@ -176,6 +184,11 @@ bool g_discHeld[kDiscControls], g_discWasHeld[kDiscControls];
 int g_discSelected, g_discInserted;
 bool g_selectorMoved;
 bool g_driveRead;                 // a sector was read this frame: the drive's light
+
+// An arcade board's coin switch. Mednafen takes a coin as an event, not as a
+// switch that is held: one coin for each time the control goes down. What it
+// was a frame ago is the machine's state, as the drive's is.
+bool g_coinHeld, g_coinWasHeld;
 
 // the states of the drive Mednafen is told of (load_discs)
 enum { kTrayOpen = 0, kTrayClosedEmpty = 1, kTrayClosed = 2 };
@@ -313,8 +326,19 @@ const InputDeviceInfoStruct *device_for(unsigned port)
 {
 	auto const &info = g_system->PortInfo[port];
 	char key[96], val[64];
-	snprintf(key, sizeof key, "%s.input.%s", g_system->shortname, info.ShortName);
-	const char *want = wbx_setting_str(key, val, sizeof val) > 0 ? val : info.DefaultDevice;
+	const char *want;
+	if (g_entry->arcade && port + 1 < g_system->PortInfo.size())
+	{
+		// a cabinet's controls are the game's, not a choice: Mednafen names
+		// them as it loads the game, and a port it names nothing for is empty
+		want = port < g_system->DesiredInput.size() ? g_system->DesiredInput[port].device_name : nullptr;
+		if (!want) return nullptr;
+	}
+	else
+	{
+		snprintf(key, sizeof key, "%s.input.%s", g_system->shortname, info.ShortName);
+		want = wbx_setting_str(key, val, sizeof val) > 0 ? val : info.DefaultDevice;
+	}
 	for (auto const &device : info.DeviceInfo)
 		if (want && !strcmp(device.ShortName, want)) return &device;
 	return info.DeviceInfo.empty() ? nullptr : &info.DeviceInfo[0];
@@ -325,6 +349,11 @@ const InputDeviceInfoStruct *device_for(unsigned port)
 void write_value(control const &c, int32_t value)
 {
 	if (!c.live) return;
+	if (c.live->mode == 'c')   // the coin switch
+	{
+		g_coinHeld = value != 0;
+		return;
+	}
 	if (c.live->mode == 'd')   // one of the drive's controls
 	{
 		g_discHeld[!strcmp(c.live->sname, "disc_previous") ? kDiscPrevious : !strcmp(c.live->sname, "disc_next") ? kDiscNext : kDiscSwap] = value != 0;
@@ -396,8 +425,10 @@ void build_panel()
 		c.rows.push_back(&row);
 		if (row.port < 0)
 		{
-			// the drive's controls: the lid always, the selector with more than one disc
-			if (!strcmp(row.sname, "disc_swap") ? !g_discs.empty() : g_discs.size() > 1) c.live = &row;
+			// the coin switch, and the drive's controls: the lid always, the
+			// selector with more than one disc
+			if (row.mode == 'c') c.live = &row;
+			else if (!strcmp(row.sname, "disc_swap") ? !g_discs.empty() : g_discs.size() > 1) c.live = &row;
 			continue;
 		}
 		const InputDeviceInfoStruct *device = size_t(row.port) < g_plugged.size() ? g_plugged[row.port] : nullptr;
@@ -487,12 +518,58 @@ void load_cart(std::string const &path)
 	size_t const slash = path.find_last_of('/');
 	std::string const name = slash == std::string::npos ? path : path.substr(slash + 1);
 	size_t const dot = name.rfind('.');
-	std::string ext = dot == std::string::npos ? "" : name.substr(dot);
+	std::string ext = dot == std::string::npos ? "" : name.substr(dot + 1);
 	for (char &c : ext) c = char(tolower((unsigned char)c));
 	std::string const base = dot == std::string::npos ? name : name.substr(0, dot);
 	std::unique_ptr<Stream> stream(new FileStream(path, FileStream::MODE_READ));
 	GameFile gf({ &NVFS, "", path, stream.get(), ext, base, { &NVFS, "", base } });
 	g_system->Load(&gf);
+}
+
+// An arcade board's game: a zip of the ROM files of its chips, as MAME names
+// them. Mednafen knows a game by the name and the first bytes of one of the
+// files (ss/db.cpp, DB_LookupSTV) and reads the others by the names its table
+// has, through its own reader of zip files. The zip stays open for no longer
+// than the load.
+void load_rom_set(std::string const &path)
+{
+	ZIPReader zip(std::unique_ptr<Stream>(new FileStream(path, FileStream::MODE_READ)));
+	for (size_t i = 0; i < zip.num_files(); i++)
+	{
+		std::string const full = *zip.get_file_path(i);
+		size_t const slash = full.find_last_of('/');
+		// the reader's names start at the zip's root, "/"
+		std::string const dir = slash == std::string::npos ? "" : slash == 0 ? "/" : full.substr(0, slash);
+		std::string const name = slash == std::string::npos ? full : full.substr(slash + 1);
+		size_t const dot = name.rfind('.');
+		std::string ext = dot == std::string::npos ? "" : name.substr(dot + 1);
+		for (char &c : ext) c = char(tolower((unsigned char)c));
+		std::string const base = dot == std::string::npos ? name : name.substr(0, dot);
+		{
+			// the start of the file is enough to know the game by
+			uint8 head[0x80];
+			std::unique_ptr<Stream> member(zip.open(i));
+			uint64 const got = member->read(head, sizeof head, false);
+			MemoryStream start(got, true);
+			start.write(head, got);
+			start.rewind();
+			GameFile probe({ &zip, dir, name, &start, ext, base, { &NVFS, "", base } });
+			if (!g_system->TestMagic || !g_system->TestMagic(&probe)) continue;
+		}
+		MemoryStream whole(zip.open(i));
+		GameFile gf({ &zip, dir, name, &whole, ext, base, { &NVFS, "", base } });
+		try
+		{
+			g_system->Load(&gf);
+		}
+		catch (MDFN_Error const &e)
+		{
+			if (e.GetErrno() != ENOENT) throw;
+			throw MDFN_Error(0, "%s\nThe ROM set has to hold every file of the game, under the names MAME gives them. A set that leaves out the files its parent set has (a \"split\" clone) is not read.", e.what());
+		}
+		return;
+	}
+	throw MDFN_Error(0, "No file of this ROM set is the start of an ST-V game that Mednafen knows. The files have to carry the names MAME gives them (for example mpr17945.1).");
 }
 
 void start_frame_buffers()
@@ -525,10 +602,31 @@ void take_picture()
 		for (int y = r.y; y < r.y + r.h; y++) w = std::max(w, int(g_lineWidths[y]));
 	}
 	if (w <= 0) return;
+	const uint32 *src = g_surface->pixels + r.x + r.y * g_surface->pitchinpix;
+	if (g_system->rotated == MDFN_ROTATE90 || g_system->rotated == MDFN_ROTATE270)
+	{
+		// a game whose monitor stands on its side: the picture is turned as
+		// the cabinet's is, so the game's lines become columns
+		bool const left = g_system->rotated == MDFN_ROTATE90;
+		g_width = r.h;
+		g_height = w;
+		g_picture.assign(size_t(w) * r.h, 0);
+		for (int y = 0; y < r.h; y++, src += g_surface->pitchinpix)
+		{
+			int const lw = perLine ? std::min(int(g_lineWidths[r.y + y]), w) : w;
+			// a line narrower than the widest is stretched over the picture's length
+			for (int x = 0; x < w && lw > 0; x++)
+			{
+				uint32 const pixel = src[lw == w ? x : int(int64_t(x) * lw / w)];
+				if (left) g_picture[size_t(w - 1 - x) * r.h + y] = pixel;
+				else g_picture[size_t(x) * r.h + (r.h - 1 - y)] = pixel;
+			}
+		}
+		return;
+	}
 	g_width = w;
 	g_height = r.h;
 	g_picture.assign(size_t(w) * r.h, 0);
-	const uint32 *src = g_surface->pixels + r.x + r.y * g_surface->pitchinpix;
 	for (int y = 0; y < r.h; y++, src += g_surface->pitchinpix)
 	{
 		int const lw = perLine ? std::min(int(g_lineWidths[r.y + y]), w) : w;
@@ -599,6 +697,7 @@ const char *describe_systems()
 		if (&entry != kSystems) o += ",";
 		o += "\n{\"machine\":" + json_text(entry.machine) + ",\"shortname\":" + json_text(gi.shortname)
 			+ ",\"fullname\":" + json_text(gi.fullname) + ",\"disc\":" + (entry.disc ? "true" : "false")
+			+ ",\"arcade\":" + (entry.arcade ? "true" : "false")
 			+ ",\"fps\":" + std::to_string(gi.fps) + ",\"fb\":[" + std::to_string(gi.fb_width) + "," + std::to_string(gi.fb_height)
 			+ "],\"nominal\":[" + std::to_string(gi.nominal_width) + "," + std::to_string(gi.nominal_height) + "],\"extensions\":[";
 		for (const FileExtensionSpecStruct *e = gi.FileExtensions; e && e->extension; e++)
@@ -698,6 +797,14 @@ bool choose_machine()
 			else g_settings[s->name] = val;
 		}
 	for (auto const &name : kFirmwareNames) g_settings[name[0]] = name[1];
+	if (g_entry->arcade)
+	{
+		// the board's region is one setting of this core's: the region
+		// Mednafen's table gives the game, or one of the three it has a BIOS for
+		std::string const region = wbx_setting_str("stv.region", val, sizeof val) > 0 ? val : "game";
+		g_settings["ss.region_autodetect"] = region == "game" ? "1" : "0";
+		if (region != "game") g_settings["ss.region_default"] = region;
+	}
 	// the machine's clock starts at a time the project sets, never the host's
 	if (wbx_setting_str("initialTime", val, sizeof val) > 0) g_time = strtoll(val, nullptr, 10);
 	return true;
@@ -705,7 +812,7 @@ bool choose_machine()
 
 std::vector<std::string> game_files()
 {
-	std::vector<std::string> files = slot_files(g_entry->disc ? "disc" : "cart");
+	std::vector<std::string> files = slot_files(g_entry->slot);
 	if (files.empty() && !lone_rom().empty()) files.push_back(lone_rom());
 	return files;
 }
@@ -818,6 +925,45 @@ void MDFN_ChimeraSaveMemory(const char *ext, void *memory, uint64 bytes, bool wo
 	g_saves.push_back({ ext, static_cast<uint8_t *>(memory), bytes, words });
 }
 void MDFN_ChimeraInputRead(void) { g_inputRead = true; }
+// An ST-V's BIOS. MAME keeps the BIOS of every region and version in one set,
+// stvbios.zip, and the names of the files in it have changed over the years,
+// so a file is known by its checksum: for each region the versions Mednafen
+// can start from, the one it names itself first.
+bool MDFN_ChimeraFirmware(const char *setting, uint8 *dest, uint32 bytes)
+{
+	static const struct { const char *setting, *region, *file; uint32 crc[3]; } kBios[] = {
+		{ "ss.bios_stv_jp", "Japanese", "epr-20091.ic8", { 0x59ed40f4, 0xd0e0889d, 0x2672f9d8 } },
+		{ "ss.bios_stv_na", "North American", "epr-17952a.ic8", { 0xd1be2adf, 0, 0 } },
+		{ "ss.bios_stv_eu", "European", "epr-17954a.ic8", { 0xf7722da3, 0, 0 } },
+	};
+	for (auto const &bios : kBios)
+	{
+		if (strcmp(setting, bios.setting)) continue;
+		std::unique_ptr<Stream> set;
+		try
+		{
+			set.reset(new FileStream("stvbios.zip", FileStream::MODE_READ));
+		}
+		catch (MDFN_Error const &e)
+		{
+			throw MDFN_Error(0, "The ST-V's BIOS set (stvbios.zip) was not given: %s", e.what());
+		}
+		ZIPReader zip(std::move(set));
+		std::vector<uint8> rom(bytes);
+		for (uint32 const crc : bios.crc)
+			for (size_t i = 0; crc && i < zip.num_files(); i++)
+			{
+				if (zip.get_file_size(i) != bytes) continue;
+				std::unique_ptr<Stream> member(zip.open(i));
+				member->read(rom.data(), bytes);
+				if (crc32_zip(0, rom.data(), bytes) != crc) continue;
+				memcpy(dest, rom.data(), bytes);
+				return true;
+			}
+		throw MDFN_Error(0, "The BIOS set (stvbios.zip) does not hold the BIOS of a %s ST-V, which MAME names %s. The game's region, or the Region setting, asks for it.", bios.region, bios.file);
+	}
+	return false;
+}
 void MDFN_ChimeraWordMemory(const char *name, uint32 address, uint16 *words, uint32 bytes, uint8 (*peek)(uint32), void (*poke)(uint32, uint8))
 {
 	g_memory.push_back({ name, address, reinterpret_cast<uint8_t *>(words), bytes, true, peek, poke });
@@ -871,6 +1017,7 @@ ECL_EXPORT int Init(void)
 			return 0;
 		}
 		if (g_entry->disc) load_discs(files);
+		else if (g_entry->arcade) load_rom_set(files[0]);
 		else load_cart(files[0]);
 
 		start_frame_buffers();
@@ -911,6 +1058,8 @@ ECL_EXPORT void FrameAdvance(uint64_t)
 	g_inputRead = false;
 	g_driveRead = false;
 	run_drive();
+	if (g_coinHeld && !g_coinWasHeld && g_system->DoSimpleCommand) g_system->DoSimpleCommand(MDFN_MSC_INSERT_COIN);
+	g_coinWasHeld = g_coinHeld;
 	if (g_system->TransformInput) g_system->TransformInput();
 	g_system->Emulate(&g_spec);
 	g_spec.VideoFormatChanged = false;
@@ -926,8 +1075,10 @@ ECL_EXPORT void SetRenderingEnabled(int on) { g_render = on != 0; }
 ECL_EXPORT uint32_t *GetVideoBgra(void) { return g_picture.data(); }
 ECL_EXPORT int GetVideoWidth(void) { return g_width; }
 ECL_EXPORT int GetVideoHeight(void) { return g_height; }
-ECL_EXPORT int GetDisplayAspectX(void) { return g_system ? g_system->nominal_width : 4; }
-ECL_EXPORT int GetDisplayAspectY(void) { return g_system ? g_system->nominal_height : 3; }
+// a game whose monitor stands on its side has the shape of one that does
+static bool on_its_side() { return g_system && (g_system->rotated == MDFN_ROTATE90 || g_system->rotated == MDFN_ROTATE270); }
+ECL_EXPORT int GetDisplayAspectX(void) { return !g_system ? 4 : on_its_side() ? g_system->nominal_height : g_system->nominal_width; }
+ECL_EXPORT int GetDisplayAspectY(void) { return !g_system ? 3 : on_its_side() ? g_system->nominal_width : g_system->nominal_height; }
 
 ECL_EXPORT int16_t *GetAudio(void) { return g_audio; }
 ECL_EXPORT int GetAudioSampleCount(void) { return g_audioFrames; }

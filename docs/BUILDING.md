@@ -90,7 +90,7 @@ build/meson-native/run-native --describe > /tmp/describe.json
 waterbox/gen-config.py /tmp/describe.json
 ```
 
-`--describe` prints Mednafen's own tables for the four systems: every port,
+`--describe` prints Mednafen's own tables for the five machines: every port,
 every device a port takes, every input of each device, every setting.
 `waterbox/machines.json` holds what is written by hand: the names Chimera
 shows, which port is which player, and the settings a project may set with
@@ -131,6 +131,9 @@ files that cannot be in this repository, and say SKIP without them:
 | `pcfx:chd` | a `.chd` of the first PC-FX game | `tests/games-local/pcfx-chd` | `PCFX_GAME_CHD` |
 | `lynx:` | a game, as a folder with a `.lnx` file, and the boot ROM | `tests/games-local/lynx`, `tests/roms-local/lynxboot.img` | `LYNX_GAME`, `LYNX_BOOT` |
 | `vb-game:` | a game, as a folder with a `.vb` file | `tests/games-local/vb` | `VB_GAME` |
+| `stv:` | an ST-V game, as a folder with the `.zip` of its ROM files, and MAME's set of the board's BIOS files | `tests/games-local/stv`, `tests/roms-local/stvbios.zip` | `STV_GAME`, `STV_BIOS` |
+| `stv:upright` | an ST-V game whose monitor stands on its side (Shienryu) | `tests/games-local/stv-shienryu` | `STV_GAME_UPRIGHT` |
+| `stv:hammer` | an ST-V game played with a hammer (Tatacot, Critter Crusher) | `tests/games-local/stv-hammer` | `STV_GAME_HAMMER` |
 
 Copy the files there; do not link them from where you keep them. Without
 `CHIMERA_ROOT` the tests that run the package in Chimera's engine are

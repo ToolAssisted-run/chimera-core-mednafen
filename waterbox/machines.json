@@ -1,5 +1,5 @@
 {
- "_comment": "The part of the package that is written by hand: what each of the four systems is called in Chimera, which of Mednafen's ports belongs to which player, the names of the controls where Mednafen's own would collide or carry signs a movie cannot hold, and the settings a project may set, with what a user reads about each. Everything else - which devices a port takes, every button and axis of each, a setting's type, default, limits and choices - is read from Mednafen's own tables (run-native --describe) by gen-config.py, which stops when something here names a thing Mednafen does not have.",
+ "_comment": "The part of the package that is written by hand: what each of the machines is called in Chimera, which of Mednafen's ports belongs to which player, the names of the controls where Mednafen's own would collide or carry signs a movie cannot hold, and the settings a project may set, with what a user reads about each. Everything else - which devices a port takes, every button and axis of each, a setting's type, default, limits and choices - is read from Mednafen's own tables (run-native --describe) by gen-config.py, which stops when something here names a thing Mednafen does not have.",
  "machines": [
   {
    "machine": "saturn",
@@ -153,14 +153,53 @@
     {"name": "lynx.rotateinput", "display": "Turn The Pad With The Screen", "description": "Some games are played with the console held upright. This turns the direction pad with the picture, so Up is still up. It is part of the machine, so a movie needs the same value."},
     {"name": "lynx.lowpass", "display": "Soften The Sound", "description": "Passes the sound through a filter like the console's small speaker. It changes the sound, so a movie's recording needs the same value."}
    ]
+  },
+  {
+   "machine": "stv",
+   "id": "STV",
+   "label": "Sega ST-V",
+   "controller": "ST-V Controls",
+   "virtualWidth": 302,
+   "virtualHeight": 240,
+   "extensions": {},
+   "ports": ["port1", "port2", "builtin"],
+   "devices": ["gamepad", "gun", "builtin"],
+   "deviceOnlyOn": {"gun": ["port1"]},
+   "deviceFromGame": true,
+   "inSetupOrder": true,
+   "players": {"port1": 1, "port2": 2, "builtin": 0},
+   "family": {"gun": "Hammer"},
+   "skip": ["builtin.smpc_reset", "gamepad.rs", "gamepad.ls", "gun.start", "gun.offscreen_shot"],
+   "names": {
+    "builtin.stv_test": "Test", "builtin.stv_service": "Service", "builtin.stv_pause": "Pause",
+    "up": "Up", "down": "Down", "left": "Left", "right": "Right",
+    "a": "Button 1", "b": "Button 2", "c": "Button 3", "x": "Button 4", "y": "Button 5", "z": "Button 6",
+    "gamepad.start": "Start",
+    "Hammer.x_axis": "Hammer X", "Hammer.y_axis": "Hammer Y", "Hammer.trigger": "Hammer Hit"
+   },
+   "letters": {"Up": "U", "Down": "D", "Left": "L", "Right": "R", "Button 1": "1", "Button 2": "2", "Button 3": "3", "Button 4": "4", "Button 5": "5", "Button 6": "6",
+    "Start": "S", "Hammer Hit": "H", "Coin": "c", "Test": "t", "Service": "s", "Pause": "p"},
+   "headerOf": {"Coin": "Coin", "Test": "Test", "Service": "Service", "Pause": "Pause", "Hammer Hit": "Hit"},
+   "keys": {
+    "P1 Up": "Up, J1 POV1U, X1 DpadUp, X1 LStickUp", "P1 Down": "Down, J1 POV1D, X1 DpadDown, X1 LStickDown",
+    "P1 Left": "Left, J1 POV1L, X1 DpadLeft, X1 LStickLeft", "P1 Right": "Right, J1 POV1R, X1 DpadRight, X1 LStickRight",
+    "P1 Button 1": "Z, J1 B1, X1 X", "P1 Button 2": "X, J1 B2, X1 A", "P1 Button 3": "C, J1 B3, X1 B",
+    "P1 Button 4": "A, J1 B4, X1 Y", "P1 Button 5": "S, J1 B5, X1 LeftShoulder", "P1 Button 6": "D, J1 B6, X1 RightShoulder",
+    "P1 Start": "Enter, J1 B10, X1 Start", "Coin": "Space, J1 B9, X1 Back"
+   },
+   "ownSettings": [
+    {"name": "stv.region", "display": "Region", "description": "The region of the board, which decides the BIOS it starts from and, in many games, the language. 'game' is the region Mednafen's list gives the game. 'jp' is Japan, 'na' North America and 'eu' Europe; not every game runs in every region. It is part of the machine, so a movie needs the same value.", "type": "enum", "options": ["game", "jp", "na", "eu"], "default": "game"}
+   ],
+   "shareSettings": ["ss.h_overscan", "ss.h_blend", "ss.correct_aspect", "ss.slstart", "ss.slend"]
   }
  ],
  "firmware": [
   {"id": "pcfx.rom", "display": "PC-FX BIOS", "description": "The PC-FX's BIOS (1 MB). The console starts from it. It is usually named pcfx.rom; versions 1.00 and 1.01 both work. It is NEC's and you have to supply it.", "size": 1048576, "name": "pcfx.rom", "requiredWhen": {"setting": "machine", "in": ["pcfx"]}},
   {"id": "lynxboot.img", "display": "Lynx boot ROM", "description": "The Lynx's boot ROM (512 bytes). The console starts from it and it checks the cartridge. It is Atari's and you have to supply it.", "size": 512, "sha1": "E4ED47FAE31693E016B081C6BDA48DA5B70D7CCB", "name": "lynxboot.img", "requiredWhen": {"setting": "machine", "in": ["lynx"]}},
+  {"id": "stvbios.zip", "display": "ST-V BIOS set", "description": "The BIOS of the ST-V board, as the set of them MAME uses: stvbios.zip, a zip of the BIOS of every region (512 KB each). The core takes out the one for the game's region, by its contents and not by its name, so a set from any version of MAME works. It is Sega's and you have to supply it.", "name": "stvbios.zip", "requiredWhen": {"setting": "machine", "in": ["stv"]}},
   {"id": "satar4mp.bin", "display": "Action Replay 4M Plus ROM", "description": "The ROM of the Action Replay 4M Plus cartridge. It is needed when the Cartridge setting is 'ar4mp'. You have to supply it.", "name": "satar4mp.bin", "requiredWhen": {"all": [{"setting": "machine", "in": ["saturn"]}, {"setting": "ss.cart", "is": "ar4mp"}]}}
  ],
  "commonSettings": [
-  {"name": "initialTime", "display": "Starting Clock", "description": "What the machine's clock shows when it is switched on, in seconds since 1970 (Unix time). The Saturn's clock is set from it. This is a setting, and not your computer's clock, so that a movie plays back the same on any day.", "type": "int", "min": 0, "max": 2147483647, "default": 946684800, "when": ["saturn"]}
+  {"name": "initialTime", "display": "Starting Clock", "description": "What the machine's clock shows when it is switched on, in seconds since 1970 (Unix time). The Saturn's clock and the ST-V's are set from it. This is a setting, and not your computer's clock, so that a movie plays back the same on any day.", "type": "int", "min": 0, "max": 2147483647, "default": 946684800, "when": ["saturn", "stv"]}
  ]
 }
