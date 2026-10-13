@@ -104,7 +104,7 @@ dated 2026-10-12 say so of the other three.
 | 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | done 2026-10-13: see "Games for the other three systems" below |
 | 5 | Save data, lag frames, disc change, CHD | Tests for each | done 2026-10-12: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data, the drive's lid and disc selector, CHD images |
 | 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | done 2026-10-12 except a run on a CI runner: the test script (32 tests), the window test (4), README, AGENTS.md, the CI workflow (never run: the repository is not published; a fresh clone builds and passes the 13 tests that need no file). Windows: Chimera's headless runner plays the Virtual Boy project and a 1,500-frame Saturn movie with presses and ends on the same RAM and the same pictures as Linux |
-| 7 | Publishing | The owner's word | on hold by the owner (2026-10-12) |
+| 7 | Publishing | The owner's word | done 2026-10-13: see "Publishing" at the end |
 
 ## What the first two steps found
 
@@ -433,3 +433,20 @@ own, and there is no setting for them.
 A movie made before this, with nothing set for port 2, was made with a pad
 in port 2 and now opens with none. The core has not been published, so no
 such movie is known.
+
+## Publishing (user-decided, 2026-10-13)
+
+The owner said to publish. The repository is public as
+`ToolAssisted-run/chimera-core-mednafen`, and its workflow builds the
+package from a fresh clone, tests it and publishes it.
+
+What a runner tests is less than what is tested before a push, because no
+BIOS and no game may be put on one: the source and the package's
+declarations, the Virtual Boy with the program the tests assemble (native
+against sandbox, savestates, a save file, Chimera's engine and window), and
+Chimera's package checks. Every test that needs a game says SKIP there. They
+are run where the files are, before a push.
+
+The core needs a Chimera that asks a core about a game with the game's files
+(Chimera 25aacaa, 2026-10-12): an older one never asks for the Saturn's
+BIOS.

@@ -10,7 +10,10 @@ them.
 
 ## Status
 
-New, and not published yet.
+New. The built package is on this repository's
+[Releases](https://github.com/ToolAssisted-run/chimera-core-mednafen/releases)
+page: download `mednafen-<version>.chimeraCore` and put it in Chimera's
+`Cores` folder. It needs a Chimera build from 2026-10-12 or later.
 
 Each machine has run games, and for each the sandboxed core gives the same
 results as a plain native build: picture, sound, pads, lag frames and
