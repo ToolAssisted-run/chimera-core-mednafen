@@ -18,8 +18,9 @@
 # mpr-17933.bin when not given).
 # PCFX_GAME=<folder> is a PC-FX game, a .cue and its track files
 # (tests/games-local/pcfx), PCFX_GAME2 any second PC-FX disc
-# (tests/games-local/pcfx2) and PCFX_BIOS the console's BIOS
-# (tests/roms-local/pcfx.rom). LYNX_GAME=<folder> holds a Lynx game, a .lnx
+# (tests/games-local/pcfx2), PCFX_GAME_CHD a .chd made from PCFX_GAME's cue
+# sheet (the .chd in tests/games-local/pcfx-chd) and PCFX_BIOS the console's
+# BIOS (tests/roms-local/pcfx.rom). LYNX_GAME=<folder> holds a Lynx game, a .lnx
 # file (tests/games-local/lynx), and LYNX_BOOT is the Lynx's boot ROM
 # (tests/roms-local/lynxboot.img). VB_GAME=<folder> holds a Virtual Boy game,
 # a .vb file (tests/games-local/vb).
@@ -57,6 +58,7 @@ bios_jp="${SATURN_BIOS_JP:-$root/tests/roms-local/sega_101.bin}"
 bios_na="${SATURN_BIOS_NA_EU:-$root/tests/roms-local/mpr-17933.bin}"
 fxgame="${PCFX_GAME:-$root/tests/games-local/pcfx}"
 fxgame2="${PCFX_GAME2:-$root/tests/games-local/pcfx2}"
+fxgame_chd="${PCFX_GAME_CHD:-$(ls "$root"/tests/games-local/pcfx-chd/*.chd 2> /dev/null | head -1)}"
 fxbios="${PCFX_BIOS:-$root/tests/roms-local/pcfx.rom}"
 lxgame="${LYNX_GAME:-$root/tests/games-local/lynx}"
 lxboot="${LYNX_BOOT:-$root/tests/roms-local/lynxboot.img}"
@@ -429,12 +431,22 @@ if [ -n "$fxcue" ] && [ -f "$fxbios" ]; then
 	else
 		report "pcfx:disc-change" SKIP "no second PC-FX disc (PCFX_GAME2)"
 	fi
+	# a CHD made from the cue sheet is the same disc
+	if [ -n "$fxgame_chd" ] && [ -f "$fxgame_chd" ]; then
+		folder fx-chd '{"machine":"pcfx"}' disc "$fxgame_chd"; ln -sf "$fxbios" "$work/fx-chd/pcfx.rom"
+		box fx-chd fx-chd $fxrun
+		stream "$work/fx-chd.out" > "$work/fx-chd.stream"
+		check "pcfx:chd" "the game from a CHD in the sandbox prints the $(wc -l < "$work/fx.stream") digests the game from its cue sheet prints natively, over 3000 frames with presses" \
+			same "$work/fx.stream" "$work/fx-chd.stream"
+	else
+		report "pcfx:chd" SKIP "no CHD of the PC-FX game (PCFX_GAME_CHD)"
+	fi
 	folder fx-nobios '{"machine":"pcfx"}' disc "$fxcue"
 	nat fx-nobios fx-nobios --frames 1
 	check "pcfx:firmware-missing" "without its BIOS the console is refused, by the file's name" \
 		grep -q 'Init failed.*pcfx\.rom' "$work/fx-nobios.out" "$work/fx-nobios.err"
 else
-	for t in runs pad sandbox controls lag state-every-frame state-other-box state-rewind save-data save-pack disc-change firmware-missing; do
+	for t in runs pad sandbox controls lag state-every-frame state-other-box state-rewind save-data save-pack disc-change chd firmware-missing; do
 		report "pcfx:$t" SKIP "no PC-FX game with the console's BIOS (PCFX_GAME, PCFX_BIOS)"
 	done
 fi

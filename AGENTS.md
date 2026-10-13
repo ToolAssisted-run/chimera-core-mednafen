@@ -78,7 +78,7 @@ The script looks for them under `tests/games-local` and `tests/roms-local`
 (the folder and file names are at the top of `waterbox/run-gate.sh`, with
 the environment variables that point elsewhere: `SATURN_GAME`,
 `SATURN_GAME2`, `SATURN_GAME_CHD`, `SATURN_BIOS_JP`, `SATURN_BIOS_NA_EU`,
-`PCFX_GAME`, `PCFX_GAME2`, `PCFX_BIOS`, `LYNX_GAME`, `LYNX_BOOT`,
+`PCFX_GAME`, `PCFX_GAME2`, `PCFX_GAME_CHD`, `PCFX_BIOS`, `LYNX_GAME`, `LYNX_BOOT`,
 `VB_GAME`). Without them the script says SKIP. A skipped test proves
 nothing: if you do not have the files, say so in your report.
 

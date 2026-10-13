@@ -128,6 +128,7 @@ files that cannot be in this repository, and say SKIP without them:
 | `saturn:chd...` | a `.chd` of the first game (`chdman createcd -i <the .cue> -o <a .chd>`) | `tests/games-local/vfremix-chd` | `SATURN_GAME_CHD` |
 | `pcfx:` | a game, as a folder with a `.cue` and its tracks, and the BIOS | `tests/games-local/pcfx`, `tests/roms-local/pcfx.rom` | `PCFX_GAME`, `PCFX_BIOS` |
 | `pcfx:disc-change` | any second PC-FX disc | `tests/games-local/pcfx2` | `PCFX_GAME2` |
+| `pcfx:chd` | a `.chd` of the first PC-FX game | `tests/games-local/pcfx-chd` | `PCFX_GAME_CHD` |
 | `lynx:` | a game, as a folder with a `.lnx` file, and the boot ROM | `tests/games-local/lynx`, `tests/roms-local/lynxboot.img` | `LYNX_GAME`, `LYNX_BOOT` |
 | `vb-game:` | a game, as a folder with a `.vb` file | `tests/games-local/vb` | `VB_GAME` |
 

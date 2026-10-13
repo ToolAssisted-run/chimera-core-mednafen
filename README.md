@@ -21,8 +21,8 @@ savestates.
 - **Virtual Boy**: Virtual Boy Wario Land, Mario Clash and Red Alarm. Also
   save data.
 - **PC-FX**: Last Imperial Prince (Japan), both discs. Also save data (the
-  console's backup memory and the memory pack) and changing discs. A CHD of
-  a PC-FX disc has not been tried.
+  console's backup memory and the memory pack), changing discs, and a CHD
+  disc image.
 - **Lynx**: California Games and Chip's Challenge.
 - On Windows, Chimera's headless runner plays a movie of a game of each
   system and ends on the same memory and the same picture as on Linux, and

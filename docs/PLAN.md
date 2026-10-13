@@ -294,12 +294,16 @@ frame. (The window's script stopped at frame 302 where it asked for 300, on
 Windows only. That is Chimera's script timing, not this core's, and the
 comparison was made at frame 302.)
 
-Counts: the test script 68 passed, 0 failed, 0 skipped with every file and
+Counts: the test script 69 passed, 0 failed, 0 skipped with every file and
 Chimera's engine; the window test 6 passed; Chimera's package checks 18 of
 18. Each new kind of test was broken once and seen to fail: the bus handing
 bytes out in the host's order, a bus write made in place, and a save file
 not found.
 
-What is still not done: the ST-V arcade board (no game), a CHD of a PC-FX
-disc (not tried), and a run on a CI runner (the repository is not
-published).
+**A CHD of a PC-FX disc**: made from Last Imperial Prince's cue sheet with
+chdman 0.264 (24 tracks, the first of them audio and the second the data),
+it gives in the sandbox the 60 digests the cue sheet gives natively, over
+3,000 frames with presses, into the opening film (`pcfx:chd`).
+
+What is still not done: the ST-V arcade board (no game), and a run on a CI
+runner (the repository is not published).
