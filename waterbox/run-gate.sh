@@ -250,8 +250,8 @@ if [ -n "$cue" ] && [ -f "$bios_jp" ] && [ -f "$bios_na" ]; then
 	check "saturn:pad" "Start pressed twice changes the run (the idle run's digests differ)" differ "$work/ss.stream" "$work/ss-idle.stream"
 	check "saturn:sandbox" "native and sandbox print the same $(wc -l < "$work/ss.stream") digests of RAM, picture and sound, with presses" \
 		same "$work/ss.stream" "$work/ss-box.stream"
-	check "saturn:controls" "two pads of 13 buttons, Reset and the drive's lid are live, of the 594 buttons the Saturn declares" \
-		[ "$(grep -c "^panel .* active\$" "$work/ss.out")" = 28 ]
+	check "saturn:controls" "port 1's pad of 13 buttons, Reset and the drive's lid are live and nothing of port 2, which starts empty, of the 594 buttons the Saturn declares" \
+		sh -c "[ \"\$(grep -c '^panel .* active\$' '$work/ss.out')\" = 15 ] && grep -q \"'P1 A' active\" '$work/ss.out' && ! grep -q \"'P2 A' active\" '$work/ss.out'"
 	# the BIOS copies the disc's header to 0x06002000; the Saturn keeps its RAM
 	# as words, so this also says the bus hands bytes out in the console's order
 	check "saturn:bus" "the bus reads \"$(tr -d '\0' < "$work/ss.header" 2> /dev/null)\" at 0x06002000, where the BIOS puts the disc's header" \
@@ -299,10 +299,10 @@ sys.exit(0 if 0x400 <= stack <= 0x80000 and 0x400 <= start < 0x80000 and start %
 		[ "$(field "$work/ss-narrow.out" vid)" != "$(stream "$work/ss.out" | sed -n 6p | awk '{print $6}')" ]
 
 	# what is plugged in decides which controls are live
-	folder ss-ports '{"machine":"saturn","ss.input.port1":"3dpad","ss.input.port2":"mouse","ss.input.sport2.multitap":true}' disc "$cue"; sat_firmware ss-ports
+	folder ss-ports '{"machine":"saturn","ss.input.port1":"3dpad","ss.input.port2":"mouse","ss.input.port6":"gamepad","ss.input.port7":"gamepad","ss.input.port8":"gamepad","ss.input.sport2.multitap":true}' disc "$cue"; sat_firmware ss-ports
 	nat ss-ports ss-ports --frames 1 --list-panel
-	check "saturn:devices" "a 3D pad in port 1, a mouse in port 2 and a multitap in socket 2: the 3D pad's mode switch and the mouse's buttons are live, and port 7 is the last one with a pad" \
-		sh -c "grep -q \"'P1 Mode Analog' active\" '$work/ss-ports.out' && grep -q \"'P2 Mouse Left' active\" '$work/ss-ports.out' && grep -q \"'P7 A' active\" '$work/ss-ports.out' && ! grep -q \"'P8 A' active\" '$work/ss-ports.out' && ! grep -q \"'P2 A' active\" '$work/ss-ports.out'"
+	check "saturn:devices" "a 3D pad in port 1, a mouse in port 2, a multitap in socket 2 and pads in ports 6, 7 and 8: the 3D pad's mode switch and the mouse's buttons are live, port 7 is the last one the multitap reaches, and port 5, where nothing was put, is empty" \
+		sh -c "grep -q \"'P1 Mode Analog' active\" '$work/ss-ports.out' && grep -q \"'P2 Mouse Left' active\" '$work/ss-ports.out' && grep -q \"'P6 A' active\" '$work/ss-ports.out' && grep -q \"'P7 A' active\" '$work/ss-ports.out' && ! grep -q \"'P8 A' active\" '$work/ss-ports.out' && ! grep -q \"'P5 A' active\" '$work/ss-ports.out' && ! grep -q \"'P2 A' active\" '$work/ss-ports.out'"
 
 	# the drive: the lid up for two seconds takes the game away, and the
 	# console goes to its own screen
@@ -408,8 +408,8 @@ if [ -n "$fxcue" ] && [ -f "$fxbios" ]; then
 	check "pcfx:pad" "the pad's buttons change the run (the idle run's digests differ)" differ "$work/fx.stream" "$work/fx-idle.stream"
 	check "pcfx:sandbox" "native and sandbox print the same $(wc -l < "$work/fx.stream") digests of RAM, picture and sound, with presses" \
 		same "$work/fx.stream" "$work/fx-box.stream"
-	check "pcfx:controls" "two pads of 14 controls and the drive's lid are live" \
-		[ "$(grep -c "^panel .* active\$" "$work/fx.out")" = 29 ]
+	check "pcfx:controls" "port 1's pad of 14 controls and the drive's lid are live, and nothing of port 2, which starts empty" \
+		sh -c "[ \"\$(grep -c '^panel .* active\$' '$work/fx.out')\" = 15 ] && ! grep -q \"'P2 I' active\" '$work/fx.out'"
 	lag="$(field "$work/fx.out" lag)"
 	check "pcfx:lag" "lag frames are counted while the game loads ($lag of 3000), and not on every frame" \
 		[ "${lag:-0}" -gt 0 -a "${lag:-0}" -lt 3000 ]

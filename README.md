@@ -54,8 +54,9 @@ savestates.
 ## Buttons and settings
 
 Each system has the controls of everything Mednafen can plug into it. A
-project shows the ones of what is plugged in: by default a pad in each of
-the console's own ports.
+project shows the ones of what is plugged in: by default a pad in port 1
+and nothing in the other ports. A second player's pad is put in with the
+Port 2 setting.
 
 - **Saturn**: twelve ports (two, or up to twelve with multitaps), and for
   each a pad, a 3D pad, a mouse, a steering wheel, a mission stick or two, a

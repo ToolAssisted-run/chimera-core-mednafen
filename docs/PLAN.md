@@ -412,3 +412,24 @@ and `stv:save-settings` failed.
 
 What is still not done: a run on a CI runner (the repository is not
 published).
+
+## Ports other than the first start empty (user-decided, 2026-10-13)
+
+Every port's setting used Mednafen's default, a pad, so a new Saturn or
+PC-FX project had two pads and their controls were columns of every movie.
+The owner asked that every port but port 1 start with nothing in it. The
+default of each port's setting is now "none" except the first player's.
+
+The core has to agree with the package when a project names nothing for a
+port, so the generator writes each port's default into `panel.inc`
+(`PANEL_PORT`) and the core reads it from there. Measured on Virtua Fighter
+Remix: 15 controls are live by default (port 1's pad of 13, Reset and the
+drive's lid) and 28 with a pad put in port 2. With a multitap the ports on
+it are empty too, until the project puts something in them.
+
+The ST-V is not changed: a cabinet's two sets of controls are the game's
+own, and there is no setting for them.
+
+A movie made before this, with nothing set for port 2, was made with a pad
+in port 2 and now opens with none. The core has not been published, so no
+such movie is known.

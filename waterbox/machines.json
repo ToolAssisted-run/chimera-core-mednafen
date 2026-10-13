@@ -38,7 +38,7 @@
     "P1 L": "Q, J1 B7, X1 LeftTrigger", "P1 R": "W, J1 B8, X1 RightTrigger", "P1 Start": "Enter, J1 B10, X1 Start"
    },
    "taps": {"rule": "sequential", "settings": ["ss.input.sport1.multitap", "ss.input.sport2.multitap"], "portsOnTap": 6},
-   "portSetting": {"display": "Port %d", "description": "What is plugged into port %d. Ports 1 and 2 are the console's own when no multitap is plugged in. With a multitap in the first socket, ports 1 to 6 are on it and the next port is the second socket. 'none' leaves the port empty. It is part of the machine, so a movie needs the same value."},
+   "portSetting": {"display": "Port %d", "description": "What is plugged into port %d. Only port 1 starts with a pad; give the other players theirs here. Ports 1 and 2 are the console's own when no multitap is plugged in. With a multitap in the first socket, ports 1 to 6 are on it and the next port is the second socket. 'none' leaves the port empty. It is part of the machine, so a movie needs the same value."},
    "settings": [
     {"name": "ss.region_autodetect", "display": "Region From The Game", "description": "Takes the console's region from the game's disc. Turn it off to use the region set below, for a disc that names several regions or the wrong one. It is part of the machine, so a movie needs the same value."},
     {"name": "ss.region_default", "display": "Region", "description": "The console's region when it is not taken from the game: jp is Japan, na North America, eu Europe, kr Korea, tw Taiwan, as Asia, br Brazil, la Latin America. Japan and Taiwan use the Japanese BIOS file and the others the North American and European one. It is part of the machine, so a movie needs the same value."},
@@ -117,7 +117,7 @@
     "P1 Run": "Enter, J1 B10, X1 Start", "P1 Select": "Space, J1 B9, X1 Back"
    },
    "taps": {"rule": "pcfx", "settings": ["pcfx.input.port1.multitap", "pcfx.input.port2.multitap"]},
-   "portSetting": {"display": "Port %d", "description": "What is plugged into port %d. Ports 1 and 2 are the console's own. Ports 3, 4 and 5 are the extra ones of a multitap in the first socket, and ports 6, 7 and 8 those of one in the second. 'none' leaves the port empty. It is part of the machine, so a movie needs the same value."},
+   "portSetting": {"display": "Port %d", "description": "What is plugged into port %d. Only port 1 starts with a pad; give the other players theirs here. Ports 1 and 2 are the console's own. Ports 3, 4 and 5 are the extra ones of a multitap in the first socket, and ports 6, 7 and 8 those of one in the second. 'none' leaves the port empty. It is part of the machine, so a movie needs the same value."},
    "settings": [
     {"name": "pcfx.input.port1.multitap", "display": "Multitap In Socket 1", "description": "Plugs a multitap into the console's first controller socket. It is part of the machine, so a movie needs the same value."},
     {"name": "pcfx.input.port2.multitap", "display": "Multitap In Socket 2", "description": "Plugs a multitap into the console's second controller socket. It is part of the machine, so a movie needs the same value."},

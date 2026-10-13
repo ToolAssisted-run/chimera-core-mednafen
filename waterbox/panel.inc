@@ -2,6 +2,7 @@
 // that a control of the package stands for. Written by gen-config.py from
 // run-native --describe and machines.json; cinterface.cpp compiles it in.
 // Do not edit.
+// PANEL_PORT(machine, port, the device in it when the project names none)
 // PANEL_ROW(machine, B or A, index in the machine's list, port, device,
 //           input in the device's table, its Mednafen name, how the value
 //           is written, the control's name, this device's own words for it)
@@ -1530,6 +1531,18 @@ PANEL_ROW("saturn", 'A', 213, 11, "dmission", 25, "lthrottle", 'x', "P12 L Throt
 PANEL_ROW("saturn", 'A', 214, 11, "gun", 0, "x_axis", 'p', "P12 Gun X", "X Axis")
 PANEL_ROW("saturn", 'A', 215, 11, "gun", 1, "y_axis", 'q', "P12 Gun Y", "Y Axis")
 PANEL_TAPS("saturn", "sequential", "ss.input.sport1.multitap", "ss.input.sport2.multitap", 6)
+PANEL_PORT("saturn", 0, "gamepad")
+PANEL_PORT("saturn", 1, "none")
+PANEL_PORT("saturn", 2, "none")
+PANEL_PORT("saturn", 3, "none")
+PANEL_PORT("saturn", 4, "none")
+PANEL_PORT("saturn", 5, "none")
+PANEL_PORT("saturn", 6, "none")
+PANEL_PORT("saturn", 7, "none")
+PANEL_PORT("saturn", 8, "none")
+PANEL_PORT("saturn", 9, "none")
+PANEL_PORT("saturn", 10, "none")
+PANEL_PORT("saturn", 11, "none")
 PANEL_ROW("virtualboy", 'B', 0, 0, "gamepad", 0, "a", 'b', "P1 A", "")
 PANEL_ROW("virtualboy", 'B', 1, 0, "gamepad", 1, "b", 'b', "P1 B", "")
 PANEL_ROW("virtualboy", 'B', 2, 0, "gamepad", 2, "rt", 'b', "P1 R", "Right-Back")
@@ -1693,6 +1706,14 @@ PANEL_ROW("pcfx", 'A', 13, 6, "mouse", 1, "motion", 'r', "P7 Mouse Y", "Motion: 
 PANEL_ROW("pcfx", 'A', 14, 7, "mouse", 0, "motion", 'r', "P8 Mouse X", "Motion: Left / Right")
 PANEL_ROW("pcfx", 'A', 15, 7, "mouse", 1, "motion", 'r', "P8 Mouse Y", "Motion: Up / Down")
 PANEL_TAPS("pcfx", "pcfx", "pcfx.input.port1.multitap", "pcfx.input.port2.multitap", 0)
+PANEL_PORT("pcfx", 0, "gamepad")
+PANEL_PORT("pcfx", 1, "none")
+PANEL_PORT("pcfx", 2, "none")
+PANEL_PORT("pcfx", 3, "none")
+PANEL_PORT("pcfx", 4, "none")
+PANEL_PORT("pcfx", 5, "none")
+PANEL_PORT("pcfx", 6, "none")
+PANEL_PORT("pcfx", 7, "none")
 PANEL_ROW("lynx", 'B', 0, 0, "gamepad", 0, "a", 'b', "P1 A", "")
 PANEL_ROW("lynx", 'B', 1, 0, "gamepad", 1, "b", 'b', "P1 B", "")
 PANEL_ROW("lynx", 'B', 2, 0, "gamepad", 2, "option_2", 'b', "P1 Option 2", "")

@@ -366,11 +366,18 @@ def main():
                 continue
             if port["default"] not in devices:
                 fail("%s: the default device of %s is not among its devices" % (m["machine"], port["short"]))
+            # only the first player's port starts with something in it (the
+            # owner, 2026-10-13): a pad nobody holds is still a pad the game
+            # sees, and its controls are columns of a movie
+            default = port["default"] if player == 1 else "none"
+            if default not in devices:
+                fail("%s: %s cannot be left empty: it has no device \"none\"" % (m["machine"], port["short"]))
+            rows.append("PANEL_PORT(%s, %d, %s)" % (cstr(m["machine"]), system["ports"].index(port), cstr(default)))
             settings.append({
                 "name": "%s.input.%s" % (system["shortname"], port["short"]),
                 "display": m["portSetting"]["display"] % player,
                 "description": m["portSetting"]["description"] % player,
-                "type": "enum", "options": devices, "default": port["default"], "when": [m["machine"]],
+                "type": "enum", "options": devices, "default": default, "when": [m["machine"]],
             })
         for decl in m.get("settings", []):
             settings.append(setting_of(decl, system, m["machine"]))
@@ -409,6 +416,7 @@ def main():
                 "// that a control of the package stands for. Written by gen-config.py from\n"
                 "// run-native --describe and machines.json; cinterface.cpp compiles it in.\n"
                 "// Do not edit.\n"
+                "// PANEL_PORT(machine, port, the device in it when the project names none)\n"
                 "// PANEL_ROW(machine, B or A, index in the machine's list, port, device,\n"
                 "//           input in the device's table, its Mednafen name, how the value\n"
                 "//           is written, the control's name, this device's own words for it)\n")

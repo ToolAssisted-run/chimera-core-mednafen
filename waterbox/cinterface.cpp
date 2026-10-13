@@ -248,9 +248,11 @@ struct panel_row
 const panel_row kPanel[] = {
 #define PANEL_ROW(machine, kind, index, port, device, input, sname, mode, name, label) { machine, kind, index, port, device, input, sname, mode, name, label },
 #define PANEL_TAPS(machine, rule, first, second, ports)
+#define PANEL_PORT(machine, port, device)
 #include "panel.inc"
 #undef PANEL_ROW
 #undef PANEL_TAPS
+#undef PANEL_PORT
 };
 struct tap_rule
 {
@@ -260,9 +262,29 @@ struct tap_rule
 const tap_rule kTaps[] = {
 #define PANEL_ROW(machine, kind, index, port, device, input, sname, mode, name, label)
 #define PANEL_TAPS(machine, rule, first, second, ports) { machine, rule, { first, second }, ports },
+#define PANEL_PORT(machine, port, device)
 #include "panel.inc"
 #undef PANEL_ROW
 #undef PANEL_TAPS
+#undef PANEL_PORT
+};
+// What is in a port when the project names nothing for it: the package's
+// default for the port's setting. Only the first player's port starts with a
+// pad; the others start empty.
+struct port_default
+{
+	const char *machine;
+	unsigned port;
+	const char *device;
+};
+const port_default kPortDefaults[] = {
+#define PANEL_ROW(machine, kind, index, port, device, input, sname, mode, name, label)
+#define PANEL_TAPS(machine, rule, first, second, ports)
+#define PANEL_PORT(machine, port, device) { machine, port, device },
+#include "panel.inc"
+#undef PANEL_ROW
+#undef PANEL_TAPS
+#undef PANEL_PORT
 };
 
 struct control
@@ -337,7 +359,10 @@ const InputDeviceInfoStruct *device_for(unsigned port)
 	else
 	{
 		snprintf(key, sizeof key, "%s.input.%s", g_system->shortname, info.ShortName);
-		want = wbx_setting_str(key, val, sizeof val) > 0 ? val : info.DefaultDevice;
+		want = info.DefaultDevice;
+		for (auto const &d : kPortDefaults)
+			if (g_machine == d.machine && d.port == port) want = d.device;
+		if (wbx_setting_str(key, val, sizeof val) > 0) want = val;
 	}
 	for (auto const &device : info.DeviceInfo)
 		if (want && !strcmp(device.ShortName, want)) return &device;
