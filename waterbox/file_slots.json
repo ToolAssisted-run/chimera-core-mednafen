@@ -45,17 +45,21 @@
    "max": 2,
    "formats": [
     "bkr",
-    "bcr"
+    "bcr",
+    "sav",
+    "fxb"
    ],
-   "help": "What the Saturn's backup memory holds at the start, for a project that begins from a saved game. These are the files that Emulator > Export Save Data... writes: a .bkr file is the console's own backup memory and a .bcr file the backup memory cartridge's. Files of the same kinds from Mednafen work as they are. The file is never changed. Leave this empty to start with empty memory.",
+   "help": "What the machine's save memory holds at the start, for a project that begins from a saved game. These are the files that Emulator > Export Save Data... writes. Saturn: a .bkr file is the console's own backup memory and a .bcr file the backup memory cartridge's. PC-FX: a .sav file is the console's own backup memory and a .fxb file the memory pack's. Virtual Boy: a .sav file is the cartridge's save memory. Files of the same kinds from Mednafen work as they are. The file is never changed. Leave this empty to start with empty memory.",
    "exposedWhen": {
     "setting": "machine",
     "in": [
-     "saturn"
+     "saturn",
+     "pcfx",
+     "virtualboy"
     ]
    },
-   "namePattern": "\\.(bkr|bcr)$",
-   "nameHelp": "a save file is identified by its extension: .bkr for the console's backup memory, .bcr for the backup memory cartridge."
+   "namePattern": "\\.(bkr|bcr|sav|fxb)$",
+   "nameHelp": "a save file is identified by its extension: .bkr and .bcr for the Saturn, .sav and .fxb for the PC-FX, .sav for the Virtual Boy."
   }
  ]
 }

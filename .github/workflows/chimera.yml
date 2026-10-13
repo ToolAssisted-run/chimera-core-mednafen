@@ -9,13 +9,14 @@ name: chimera waterbox core
 #   - Mednafen's source is the pinned archive with the patches applied, and
 #     the package's declarations are what the generator writes;
 #   - on the Virtual Boy the sandboxed core gives the native build's results,
-#     with the pad, lag frames and savestates;
+#     with the pad, lag frames, a save file and savestates;
 #   - the package runs that program in Chimera's headless runner and in its
 #     window;
 #   - Chimera's own checks of the package pass.
-# Skipped here, and said so by the test script: every Saturn test (a game and
-# its BIOS), and the PC-FX and the Lynx, which have no test. Those are run
-# where the files are: docs/BUILDING.md.
+# Skipped here, and said so by the test script: every test of the Saturn, the
+# PC-FX and the Lynx (a game and the console's BIOS or boot ROM), and the
+# tests with a Virtual Boy game. Those are run where the files are:
+# docs/BUILDING.md.
 
 on:
   pull_request:
@@ -119,7 +120,7 @@ jobs:
         run: sh ./waterbox/build-package.sh -r "$GITHUB_WORKSPACE/chimera-checkout"
 
       - name: Run the test script
-        # The Saturn tests are skipped here: they need a game and its BIOS.
+        # The tests that need a game are skipped here.
         # A run in which the tests that need neither did not pass has tested
         # nothing, so they are asked for by name.
         env:
@@ -130,7 +131,7 @@ jobs:
           cat gate.out
           [ "$rc" -eq 0 ]
           for t in source:patched package:generated package:fresh vb:runs vb:pad vb:sandbox vb:controls \
-                   vb:lag vb:state-every-frame vb:state-other-box vb:state-rewind refused:no-game \
+                   vb:lag vb:state-every-frame vb:state-other-box vb:state-rewind vb:save-data refused:no-game \
                    refused:machine engine:vb; do
             grep -q "^$t  *PASS " gate.out || { echo "$t did not pass"; exit 1; }
           done
@@ -138,7 +139,8 @@ jobs:
       - name: Run the window test
         # The package loaded by Chimera's own window (under Mono, on a
         # virtual display): the Virtual Boy program's RAM against the
-        # headless runner's, and the keys. The Saturn tests are skipped.
+        # headless runner's, and the keys. The tests that need a game are
+        # skipped.
         run: |
           rc=0
           bash ./tests/run-frontend.sh --chimera-root "$GITHUB_WORKSPACE/chimera-checkout" > window.out 2>&1 || rc=$?

@@ -1,0 +1,123 @@
+The Saturn tells of its video, colour and sound memory.
+
+Patch 0006 told the frontend where the two work RAMs are. A game's
+sprites, backgrounds, colours and sound program live in four other
+memories, and a RAM cartridge is a fifth; RAM Watch and RAM Search could
+not reach any of them.
+
+So each says where it is (MDFN_ChimeraWordMemory): the sound processor's
+RAM at 0x05A00000, the sprite processor's (VDP1) memory at 0x05C00000, the
+background processor's (VDP2) memory at 0x05E00000, the colour memory at
+0x05F00000, and a RAM cartridge's two halves at 0x02400000 and 0x02600000.
+
+Two of them cannot simply be written in place. The part of Mednafen that
+draws the backgrounds keeps its own copy of the VDP2's memory and of the
+colours, so a byte written only to the first copy would read back and
+never be seen. And where a colour is kept depends on the colour mode. For
+these the hook takes two functions, to read and to write a byte as the
+console's processor would: the VDP2's memory is written through Mednafen's
+own PokeVRAM, the colour memory through the functions a game's reads and
+writes go through.
+
+--- a/src/mednafen.h
++++ b/src/mednafen.h
+@@ -34,7 +34,11 @@
+ // A memory of the machine that is kept as 16-bit words in the host's byte
+ // order, with the address the machine's processor finds it at. (Memories kept
+ // as bytes are told through MDFNMP_AddRAM, as they always were.)
+-void MDFN_ChimeraWordMemory(const char* name, uint32 address, uint16* words, uint32 bytes);
++// "peek" and "poke" are for a memory that cannot simply be read or written
++// in place: they take a byte's offset into the memory and do what the
++// machine's processor would. Without them the words are read and written
++// where they are.
++void MDFN_ChimeraWordMemory(const char* name, uint32 address, uint16* words, uint32 bytes, uint8 (*peek)(uint32 offset) = nullptr, void (*poke)(uint32 offset, uint8 value) = nullptr);
+ // A memory the machine keeps while it is off (a battery-backed RAM), under
+ // the extension Mednafen saves it with ("bkr"). "words" as above; a file of
+ // such a memory holds the words high byte first.
+--- a/src/ss/cart/extram.cpp
++++ b/src/ss/cart/extram.cpp
+@@ -83,6 +83,11 @@
+ 
+  SS_SetPhysMemMap(0x02400000, 0x025FFFFF, ExtRAM + (0x000000 / sizeof(uint16)), (R4MiB ? 0x200000 : 0x080000), true);
+  SS_SetPhysMemMap(0x02600000, 0x027FFFFF, ExtRAM + (0x200000 / sizeof(uint16)), (R4MiB ? 0x200000 : 0x080000), true);
++#if defined(CHIMERA_CORE)
++ // chimera: the RAM cartridge's two halves, for RAM Watch and RAM Search
++ MDFN_ChimeraWordMemory("Cartridge RAM", 0x02400000, ExtRAM + (0x000000 / sizeof(uint16)), (R4MiB ? 0x200000 : 0x080000));
++ MDFN_ChimeraWordMemory("Cartridge RAM", 0x02600000, ExtRAM + (0x200000 / sizeof(uint16)), (R4MiB ? 0x200000 : 0x080000));
++#endif
+ 
+  c->CS01_SetRW8W16(0x02400000, 0x027FFFFF,
+ 	ExtRAM_RW_DB<uint16, false>,
+--- a/src/ss/sound.cpp
++++ b/src/ss/sound.cpp
+@@ -146,6 +146,10 @@
+  #endif
+ 
+  SS_SetPhysMemMap(0x05A00000, 0x05A7FFFF, SCSP.GetRAMPtr(), 0x80000, true);
++#if defined(CHIMERA_CORE)
++ // chimera: the sound processor's memory, for RAM Watch and RAM Search
++ MDFN_ChimeraWordMemory("Sound RAM", 0x05A00000, SCSP.GetRAMPtr(), 0x80000);
++#endif
+  // TODO: MEM4B: SS_SetPhysMemMap(0x05A00000, 0x05AFFFFF, SCSP.GetRAMPtr(), 0x40000, true);
+ }
+ 
+--- a/src/ss/vdp1.cpp
++++ b/src/ss/vdp1.cpp
+@@ -229,6 +229,10 @@
+  //
+  //
+  SS_SetPhysMemMap(0x05C00000, 0x05C7FFFF, VRAM, sizeof(VRAM), true);
++#if defined(CHIMERA_CORE)
++ // chimera: the sprite processor's memory, for RAM Watch and RAM Search
++ MDFN_ChimeraWordMemory("VDP1 VRAM", 0x05C00000, VRAM, sizeof(VRAM));
++#endif
+  //SS_SetPhysMemMap(0x05C80000, 0x05CFFFFF, FB[FBDrawWhich], sizeof(FB[0]), true);
+ 
+  vb_status = false;
+--- a/src/ss/vdp2.cpp
++++ b/src/ss/vdp2.cpp
+@@ -884,6 +884,30 @@
+ }
+ 
+ 
++#if defined(CHIMERA_CORE)
++// chimera: the colour memory a byte at a time, as the processor finds it.
++// Where a colour is kept depends on the colour mode, and the part that draws
++// has a copy of its own, so a byte is read and written the way a game's is.
++static uint8 ChimeraPeekCRAM(uint32 offset)
++{
++ uint16 DB;
++
++ RW<uint16, false>(0x100000 + (offset & 0xFFE), &DB);
++
++ return DB >> ((~offset & 1) << 3);
++}
++
++static void ChimeraPokeCRAM(uint32 offset, uint8 value)
++{
++ const unsigned shift = (~offset & 1) << 3;
++ uint16 DB;
++
++ RW<uint16, false>(0x100000 + (offset & 0xFFE), &DB);
++ DB = (DB & ~(0xFF << shift)) | (value << shift);
++ Write16_DB(0x100000 + (offset & 0xFFE), DB);
++}
++#endif
++
+ void Init(const bool IsPAL, const uint64 affinity)
+ {
+  SurfInterlaceField = -1;
+@@ -893,6 +917,13 @@
+  Clock28M = false;
+ 
+  SS_SetPhysMemMap(0x05E00000, 0x05EFFFFF, VRAM, 0x80000, true);
++#if defined(CHIMERA_CORE)
++ // chimera: the background processor's memories, for RAM Watch and RAM
++ // Search. A write to the video memory goes through PokeVRAM, which also
++ // tells the part that draws.
++ MDFN_ChimeraWordMemory("VDP2 VRAM", 0x05E00000, VRAM, 0x80000, nullptr, PokeVRAM);
++ MDFN_ChimeraWordMemory("VDP2 Color RAM", 0x05F00000, CRAM, 0x1000, ChimeraPeekCRAM, ChimeraPokeCRAM);
++#endif
+ 
+  ExLatchIn = false;
+ 

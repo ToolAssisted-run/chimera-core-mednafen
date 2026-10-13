@@ -12,20 +12,23 @@ them.
 
 New, and not published yet.
 
-- **Saturn**: two games have been run, Virtua Fighter Remix (USA) and Virtua
-  Fighter 2 (Japan). Picture, sound, pads, savestates, save data, changing
-  discs and lag frames work, and the sandboxed core gives the same results
-  as a plain native build.
-- **Virtual Boy**: it has only run a small program the tests assemble. No
-  game has been tried.
-- **PC-FX**, **Lynx**: they build. Neither has run anything: no game of
-  theirs was at hand.
-- On Windows, Chimera's headless runner plays the Virtual Boy program and a
-  1,500-frame movie of Virtua Fighter Remix and ends on the same memory and
-  the same picture as on Linux. Chimera's window has not been tried there.
-- Not there: the Saturn's ST-V arcade board, save data of the PC-FX and of
-  Virtual Boy cartridges, and the Saturn's video and sound memory in RAM
-  Watch.
+Each system has run games, and for each the sandboxed core gives the same
+results as a plain native build: picture, sound, pads, lag frames and
+savestates.
+
+- **Saturn**: Virtua Fighter Remix (USA) and Virtua Fighter 2 (Japan). Also
+  save data, changing discs, and CHD disc images.
+- **Virtual Boy**: Virtual Boy Wario Land, Mario Clash and Red Alarm. Also
+  save data.
+- **PC-FX**: Last Imperial Prince (Japan), both discs. Also save data (the
+  console's backup memory and the memory pack) and changing discs. A CHD of
+  a PC-FX disc has not been tried.
+- **Lynx**: California Games and Chip's Challenge.
+- On Windows, Chimera's headless runner plays a movie of a game of each
+  system and ends on the same memory and the same picture as on Linux, and
+  Chimera's window opens and runs a project of each.
+- Not there: the Saturn's ST-V arcade board (no game of it was at hand to
+  test with).
 
 ## What you bring
 
@@ -60,9 +63,20 @@ Settings that are part of the machine are recorded in a project: a movie
 made with one value does not play back with another. Each setting's
 description says which kind it is.
 
-RAM Watch and RAM Search read the Saturn's two work RAMs through "System
-Bus", at the addresses a game uses (`0x00200000` and `0x06000000`), and the
-other systems' RAM as a memory domain.
+RAM Watch and RAM Search read the Saturn's memory through "System Bus", at
+the addresses a game uses: the two work RAMs (`0x00200000` and
+`0x06000000`), the sound processor's RAM (`0x05A00000`), the two video
+processors' memories (`0x05C00000` and `0x05E00000`), the colour memory
+(`0x05F00000`), and a RAM cartridge's when one is in (`0x02400000`). The
+other systems' RAM is a memory domain.
+
+Save data stays inside the machine, where a savestate holds it. Emulator >
+Export Save Data... writes it to files (the Saturn's `.bkr` and `.bcr`, the
+PC-FX's `.sav` and `.fxb`, a Virtual Boy cartridge's `.sav`), and a
+project's Save data slot takes such files, or Mednafen's own, to start from.
+
+The sound is 44.1 kHz stereo: the rate of the Saturn's sound chip and of a
+CD's audio.
 
 ## Building and testing
 

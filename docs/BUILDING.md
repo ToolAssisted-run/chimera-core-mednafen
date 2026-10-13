@@ -116,12 +116,25 @@ Chimera's `chimera-run --project` then plays.
 CHIMERA_ROOT=<chimera checkout> waterbox/run-gate.sh
 ```
 
-runs every test and says, for each, what was compared. The Virtual Boy
-tests need nothing: the script assembles a small program for it. The Saturn
-tests need a game (a folder with a `.cue` and its tracks, `SATURN_GAME`, or
-`tests/games-local/vfremix`) and the two BIOS files in `tests/roms-local`
-(`sega_101.bin`, `mpr-17933.bin`); they say SKIP without them. The CHD
-tests need a `.chd` made from that game's cue sheet (`chdman createcd -i
-<the .cue> -o <a .chd>`, `SATURN_GAME_CHD`). Without
+runs every test and says, for each, what was compared. The "vb:" tests need
+nothing: the script assembles a small Virtual Boy program. The others need
+files that cannot be in this repository, and say SKIP without them:
+
+| Tests | What they need | Where the script looks | Or name it with |
+|---|---|---|---|
+| `saturn:` | a game, as a folder with a `.cue` and its tracks | `tests/games-local/vfremix` | `SATURN_GAME` |
+| | the two BIOS files | `tests/roms-local/sega_101.bin`, `mpr-17933.bin` | `SATURN_BIOS_JP`, `SATURN_BIOS_NA_EU` |
+| `saturn:disc-change` | any second Saturn disc | `tests/games-local/vf2` | `SATURN_GAME2` |
+| `saturn:chd...` | a `.chd` of the first game (`chdman createcd -i <the .cue> -o <a .chd>`) | `tests/games-local/vfremix-chd` | `SATURN_GAME_CHD` |
+| `pcfx:` | a game, as a folder with a `.cue` and its tracks, and the BIOS | `tests/games-local/pcfx`, `tests/roms-local/pcfx.rom` | `PCFX_GAME`, `PCFX_BIOS` |
+| `pcfx:disc-change` | any second PC-FX disc | `tests/games-local/pcfx2` | `PCFX_GAME2` |
+| `lynx:` | a game, as a folder with a `.lnx` file, and the boot ROM | `tests/games-local/lynx`, `tests/roms-local/lynxboot.img` | `LYNX_GAME`, `LYNX_BOOT` |
+| `vb-game:` | a game, as a folder with a `.vb` file | `tests/games-local/vb` | `VB_GAME` |
+
+Copy the files there; do not link them from where you keep them. Without
 `CHIMERA_ROOT` the tests that run the package in Chimera's engine are
 skipped.
+
+`bash tests/run-frontend.sh --chimera-root <chimera checkout>` is the window
+test: the package in Chimera's own window (under Mono, on a private Xvfb
+display). It takes the same files.

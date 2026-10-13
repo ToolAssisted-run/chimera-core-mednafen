@@ -14,6 +14,8 @@
  *          --list-dips         print the game's dip switches and their values
  *          --dump-domain NAME FILE   write a memory domain after the run;
  *                              NAME "bus:ADDRESS:LENGTH" is a part of the bus
+ *          --poke ADDRESS:LENGTH:VALUE:FIRST:N  write VALUE to LENGTH bytes
+ *                              of the bus before each of N frames from FIRST
  *          --vid-out FILE      the last picture: "W H\n" then BGRA rows
  *          --savedata-out DIR  the game's save data after the run, a file each
  * SPDX-License-Identifier: MIT
@@ -53,6 +55,7 @@ struct gate_core
 	 * up to 65536 bytes. Either may answer NULL: no bus. */
 	const int64_t *(*bus_ranges)(void);
 	const uint8_t *(*bus_read)(int64_t addr, int32_t len);
+	void (*bus_poke)(int32_t addr, int32_t value);
 	int (*save_count)(void);
 	const char *(*save_name)(int i);
 	int64_t (*save_size)(int i);
@@ -68,6 +71,8 @@ struct gate_opts
 	struct { int index; long first, count; } press[GATE_MAX_PRESS];
 	int axes;
 	struct { int index, value; long first, count; } axis[GATE_MAX_PRESS];
+	int pokes;
+	struct { long address, length; int value; long first, count; } poke[GATE_MAX_PRESS];
 	int exercise;
 	int listPanel;
 	int listDips;
@@ -119,6 +124,21 @@ static int gate_parse_opts(int argc, char **argv, int first, struct gate_opts *o
 			o->axis[o->axes].first = f;
 			o->axis[o->axes].count = c;
 			o->axes++;
+		}
+		else if (!strcmp(argv[i], "--poke") && i + 1 < argc && o->pokes < GATE_MAX_PRESS)
+		{
+			long addr, len, f, c; int val;
+			if (sscanf(argv[++i], "%li:%li:%i:%ld:%ld", &addr, &len, &val, &f, &c) != 5)
+			{
+				fprintf(stderr, "--poke wants ADDRESS:LENGTH:VALUE:FIRST:COUNT\n");
+				return 0;
+			}
+			o->poke[o->pokes].address = addr;
+			o->poke[o->pokes].length = len;
+			o->poke[o->pokes].value = val;
+			o->poke[o->pokes].first = f;
+			o->poke[o->pokes].count = c;
+			o->pokes++;
 		}
 		else if (!strcmp(argv[i], "--exercise")) o->exercise = 1;
 		else if (!strcmp(argv[i], "--list-panel")) o->listPanel = 1;
@@ -233,6 +253,10 @@ static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 			if (f == first) c->set_axis(o->axis[a].index, o->axis[a].value);
 			if (f == first + n) c->set_axis(o->axis[a].index, 0);
 		}
+		for (int p = 0; p < o->pokes; p++)
+			if (c->bus_poke && f >= o->poke[p].first && f < o->poke[p].first + o->poke[p].count)
+				for (long at = 0; at < o->poke[p].length; at++)
+					c->bus_poke((int32_t)(o->poke[p].address + at), o->poke[p].value);
 		c->frame();
 		if (!c->input_was_read()) lag++;
 		if (f % o->report == 0 || f == o->frames)

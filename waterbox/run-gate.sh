@@ -13,8 +13,16 @@
 # that changes discs (tests/games-local/vf2 when not given). SATURN_GAME_CHD
 # is a .chd file made from SATURN_GAME's cue sheet (chdman createcd), for the
 # test that a CHD reads as its cue sheet does (the .chd in
-# tests/games-local/vfremix-chd when not given). SATURN_BIOS_JP and SATURN_BIOS_NA_EU are the two BIOS files
-# (tests/roms-local/sega_101.bin and mpr-17933.bin when not given).
+# tests/games-local/vfremix-chd when not given). SATURN_BIOS_JP and
+# SATURN_BIOS_NA_EU are the two BIOS files (tests/roms-local/sega_101.bin and
+# mpr-17933.bin when not given).
+# PCFX_GAME=<folder> is a PC-FX game, a .cue and its track files
+# (tests/games-local/pcfx), PCFX_GAME2 any second PC-FX disc
+# (tests/games-local/pcfx2) and PCFX_BIOS the console's BIOS
+# (tests/roms-local/pcfx.rom). LYNX_GAME=<folder> holds a Lynx game, a .lnx
+# file (tests/games-local/lynx), and LYNX_BOOT is the Lynx's boot ROM
+# (tests/roms-local/lynxboot.img). VB_GAME=<folder> holds a Virtual Boy game,
+# a .vb file (tests/games-local/vb).
 #
 # Needs the native build (meson setup build/meson-native ... && ninja) and
 # the sandboxed core (waterbox/setup-guest.sh && ninja -C build/meson-guest):
@@ -24,10 +32,10 @@
 # repository or on a CI runner. The Virtual Boy needs no BIOS, and
 # tests/make-vb-program.py assembles a small program for it, so the "vb:"
 # tests run everywhere: the processor runs, the pad reaches the program,
-# its reads of the pad are seen, and the sandbox gives the native build's
-# results with savestates. The Saturn tests need a game and its BIOS and say
-# SKIP without them. The PC-FX and the Lynx have no test: no game of theirs
-# has been run.
+# its reads of the pad are seen, a save file goes in and comes out, and the
+# sandbox gives the native build's results with savestates. The Saturn, PC-FX and Lynx tests need a game and
+# the console's BIOS or boot ROM, and the "vb-game:" tests a Virtual Boy
+# game; each says SKIP without its files.
 #
 # The ways a test passes on a broken thing (Chimera's docs/gates.md) that
 # these are written against: a machine that did nothing agrees with itself,
@@ -47,6 +55,12 @@ game2="${SATURN_GAME2:-$root/tests/games-local/vf2}"
 game_chd="${SATURN_GAME_CHD:-$(ls "$root"/tests/games-local/vfremix-chd/*.chd 2> /dev/null | head -1)}"
 bios_jp="${SATURN_BIOS_JP:-$root/tests/roms-local/sega_101.bin}"
 bios_na="${SATURN_BIOS_NA_EU:-$root/tests/roms-local/mpr-17933.bin}"
+fxgame="${PCFX_GAME:-$root/tests/games-local/pcfx}"
+fxgame2="${PCFX_GAME2:-$root/tests/games-local/pcfx2}"
+fxbios="${PCFX_BIOS:-$root/tests/roms-local/pcfx.rom}"
+lxgame="${LYNX_GAME:-$root/tests/games-local/lynx}"
+lxboot="${LYNX_BOOT:-$root/tests/roms-local/lynxboot.img}"
+vbgame="${VB_GAME:-$root/tests/games-local/vb}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 ok=0; failed=0; skipped=0
@@ -95,6 +109,28 @@ repeats() {
 			}
 			exit seen > 0 ? 0 : 1
 		}' "$1"
+}
+# save_round_trip <test> <machine> <slot> <game file> <exported folder> <ext> <label> <what>:
+# a save file that came out, changed in the middle and given to a project,
+# comes out of that project as it went in. <label> is text the file's first
+# 16 bytes hold (the memory's own format label), or nothing.
+save_round_trip() {
+	rt_test="$1"; rt_machine="$2"; rt_slot="$3"; rt_game="$4"; rt_from="$5"; rt_ext="$6"; rt_magic="$7"; rt_what="$8"
+	rt_file="$rt_from/$rt_machine.$rt_ext"
+	if [ ! -s "$rt_file" ]; then report "$rt_test" FAIL "no $rt_what was exported"; return; fi
+	mkdir -p "$work/$rt_test-mine" "$work/$rt_test-out"
+	python3 - "$rt_file" "$work/$rt_test-mine/mine.$rt_ext" <<'PY'
+import sys
+b = bytearray(open(sys.argv[1], "rb").read())
+at = len(b) // 2
+b[at:at + 4] = b"\xa5\x5a\xc3\x3c"
+open(sys.argv[2], "wb").write(b)
+PY
+	folder "$rt_test" "{\"machine\":\"$rt_machine\"}" "$rt_slot" "$rt_game" "$work/$rt_test-mine/mine.$rt_ext"
+	[ "$rt_machine" = pcfx ] && ln -sf "$fxbios" "$work/$rt_test/pcfx.rom"
+	box "$rt_test" "$rt_test" --frames 300 --report 300 --savedata-out "$work/$rt_test-out"
+	check "$rt_test" "$rt_what goes out as a file of $(wc -c < "$rt_file") bytes; a changed copy given to a project comes out as it went in" \
+		sh -c "head -c 16 '$rt_file' | grep -q -a '$rt_magic' && cmp -s '$work/$rt_test-mine/mine.$rt_ext' '$work/$rt_test-out/$rt_machine.$rt_ext' && ! cmp -s '$rt_file' '$work/$rt_test-out/$rt_machine.$rt_ext'"
 }
 
 if [ ! -x "$native" ] || [ ! -x "$runwbx" ] || [ ! -f "$core" ]; then
@@ -164,6 +200,11 @@ check "vb:state-every-frame" "a state saved and loaded every frame changes nothi
 check "vb:state-other-box" "a state moved to a new sandbox half way changes nothing" same "$work/vb-box.stream" "$work/vb-session.stream"
 check "vb:state-rewind" "a state kept at frame 150 and loaded at 225: the frames after the load repeat those after the save" \
 	repeats "$work/vb-rewind.out" 150 225 75 5
+# a cartridge's save memory: the program leaves it alone, so what goes in
+# must come out
+mkdir -p "$work/vb-saves"
+nat vb-save vb --frames 10 --report 10 --savedata-out "$work/vb-saves"
+save_round_trip "vb:save-data" virtualboy cart "$work/vbgame/chimera-test.vb" "$work/vb-saves" sav '' "a cartridge's save memory"
 
 # ------------------------------------------------- what is refused
 mkdir -p "$work/none"
@@ -200,6 +241,27 @@ if [ -n "$cue" ] && [ -f "$bios_jp" ] && [ -f "$bios_na" ]; then
 	# as words, so this also says the bus hands bytes out in the console's order
 	check "saturn:bus" "the bus reads \"$(tr -d '\0' < "$work/ss.header" 2> /dev/null)\" at 0x06002000, where the BIOS puts the disc's header" \
 		[ "$(cat "$work/ss.header" 2> /dev/null)" = "SEGA SEGASATURN " ]
+	# the other memories on the bus: the sound processor's RAM begins with the
+	# table its program starts from, and the colours are in use
+	nat ss-mem ss $ssrun --dump-domain bus:0x05A00000:8 "$work/ss.sound"
+	nat ss-mem2 ss $ssrun --dump-domain bus:0x05F00000:4096 "$work/ss.colours"
+	# a 68000 starts from two numbers at the bottom of its memory, a stack
+	# address and a start address past the table they head; bytes handed out in
+	# the wrong order do not make such a pair
+	check "saturn:bus-memories" "the bus also reads the sound processor's RAM (it begins $(od -An -tx1 "$work/ss.sound" 2> /dev/null | tr -d ' \n'): the stack and start addresses of its program) and the colour memory ($(tr -d '\0' < "$work/ss.colours" 2> /dev/null | wc -c) of 4096 bytes in use)" \
+		python3 -c "
+import sys
+b = open(sys.argv[1], 'rb').read()
+stack, start = int.from_bytes(b[0:4], 'big'), int.from_bytes(b[4:8], 'big')
+colours = sum(1 for x in open(sys.argv[2], 'rb').read() if x)
+sys.exit(0 if 0x400 <= stack <= 0x80000 and 0x400 <= start < 0x80000 and start % 2 == 0 and colours > 16 else 1)" "$work/ss.sound" "$work/ss.colours"
+	# a write to the colour memory is seen: every colour made the same one
+	# leaves a picture of one colour, the same natively and in the sandbox
+	nat ss-poke ss $ssrun --poke 0x05F00000:4096:0x1F:1490:11
+	box ss-poke-box ss $ssrun --poke 0x05F00000:4096:0x1F:1490:11
+	last() { stream "$1" | tail -1 | awk -v n="$2" '{print $n}'; }   # 7 is the picture's digest, 10 the sound's
+	check "saturn:bus-write" "every byte of the colour memory written through the bus for the last 11 frames changes the last picture ($(last "$work/ss-poke.out" 7) against $(last "$work/ss.out" 7)) and not the sound, the same in the sandbox" \
+		[ -n "$(last "$work/ss-poke.out" 7)" -a "$(last "$work/ss-poke.out" 7)" != "$(last "$work/ss.out" 7)" -a "$(last "$work/ss-poke.out" 10)" = "$(last "$work/ss.out" 10)" -a "$(last "$work/ss-poke.out" 7)" = "$(last "$work/ss-poke-box.out" 7)" -a "$(last "$work/ss-poke.out" 4)" = "$(last "$work/ss-poke-box.out" 4)" ]
 	lag="$(field "$work/ss.out" lag)"
 	check "saturn:lag" "lag frames are counted while the BIOS starts and the game loads ($lag of 1500), and not on every frame" \
 		[ "${lag:-0}" -gt 0 -a "${lag:-0}" -lt 1500 ]
@@ -309,12 +371,142 @@ sys.exit(0 if ids[:2] == ['saturn_jp.bin', 'saturn_na_eu.bin'] and all('required
 	check "saturn:firmware-missing" "without its BIOS the console is refused, by the file's name" \
 		grep -q 'Init failed.*saturn_.*\.bin' "$work/ss-nobios.out" "$work/ss-nobios.err"
 else
-	for t in runs pad sandbox controls bus lag state-every-frame state-other-box state-rewind setting devices lid disc-change chd chd-states chd-rewind save-data firmware-asked firmware-missing; do
+	for t in runs pad sandbox controls bus bus-memories bus-write lag state-every-frame state-other-box state-rewind setting devices lid disc-change chd chd-states chd-rewind save-data firmware-asked firmware-missing; do
 		report "saturn:$t" SKIP "no Saturn game with its two BIOS files (SATURN_GAME, SATURN_BIOS_JP, SATURN_BIOS_NA_EU)"
 	done
 fi
-report "pcfx" SKIP "the PC-FX has never been run: no game of it is at hand"
-report "lynx" SKIP "the Lynx has never been run: no game of it is at hand"
+# ------------------------------------------------- the PC-FX, with a game
+fxcue="$(ls "$fxgame"/*.cue 2> /dev/null | head -1)"
+if [ -n "$fxcue" ] && [ -f "$fxbios" ]; then
+	folder fx '{"machine":"pcfx"}' disc "$fxcue"; ln -sf "$fxbios" "$work/fx/pcfx.rom"
+	# button I, then Run, then I three times, five seconds apart: past the
+	# BIOS's screen and into most games
+	fxrun="--frames 3000 --report 50 --press 0:1400:10 --press 7:1700:10 --press 0:2000:10 --press 0:2300:10 --press 0:2600:10"
+	mkdir -p "$work/fx-saves"
+	nat fx-idle fx --frames 3000 --report 50
+	nat fx fx $fxrun --list-panel --savedata-out "$work/fx-saves"
+	box fx-box fx $fxrun
+	for n in fx fx-idle fx-box; do stream "$work/$n.out" > "$work/$n.stream"; done
+	pictures="$(awk '{print $7}' "$work/fx.stream" | sort -u | wc -l)"
+	sounds="$(awk '{print $10}' "$work/fx.stream" | sort -u | wc -l)"
+	check "pcfx:runs" "the game runs: $pictures different pictures and $sounds different stretches of sound in 60 reports" [ "$pictures" -gt 5 -a "$sounds" -gt 5 ]
+	check "pcfx:pad" "the pad's buttons change the run (the idle run's digests differ)" differ "$work/fx.stream" "$work/fx-idle.stream"
+	check "pcfx:sandbox" "native and sandbox print the same $(wc -l < "$work/fx.stream") digests of RAM, picture and sound, with presses" \
+		same "$work/fx.stream" "$work/fx-box.stream"
+	check "pcfx:controls" "two pads of 14 controls and the drive's lid are live" \
+		[ "$(grep -c "^panel .* active\$" "$work/fx.out")" = 29 ]
+	lag="$(field "$work/fx.out" lag)"
+	check "pcfx:lag" "lag frames are counted while the game loads ($lag of 3000), and not on every frame" \
+		[ "${lag:-0}" -gt 0 -a "${lag:-0}" -lt 3000 ]
+	box fx-rerecord fx --frames 1500 --report 50 --press 0:1400:10 --rerecord
+	box fx-short fx --frames 1500 --report 50 --press 0:1400:10
+	box fx-session fx $fxrun --session
+	# no press after the state is kept: what follows the load can only repeat
+	# what followed the save under the same input
+	box fx-rewind fx --frames 3000 --report 5 --press 0:1400:10 --rewind
+	for n in fx-rerecord fx-short fx-session; do stream "$work/$n.out" > "$work/$n.stream"; done
+	check "pcfx:state-every-frame" "a state saved and loaded every frame for 1500 frames changes nothing" same "$work/fx-short.stream" "$work/fx-rerecord.stream"
+	check "pcfx:state-other-box" "a state moved to a new sandbox half way changes nothing" same "$work/fx-box.stream" "$work/fx-session.stream"
+	check "pcfx:state-rewind" "a state kept at frame 1500 and loaded at 2250, while the game plays from its disc: the frames after the load repeat those after the save" \
+		repeats "$work/fx-rewind.out" 1500 2250 750 5
+	save_round_trip "pcfx:save-data" pcfx disc "$fxcue" "$work/fx-saves" sav PCFXSram "the console's backup memory (labelled PCFXSram)"
+	save_round_trip "pcfx:save-pack" pcfx disc "$fxcue" "$work/fx-saves" fxb PCFXCard "the memory pack's memory (labelled PCFXCard)"
+	fxcue2="$(ls "$fxgame2"/*.cue 2> /dev/null | head -1)"
+	if [ -n "$fxcue2" ]; then
+		folder fx2 '{"machine":"pcfx"}' disc "$fxcue"; ln -sf "$fxbios" "$work/fx2/pcfx.rom"
+		for f in "$fxgame2"/*; do ln -sf "$f" "$work/fx2/$(basename "$f")"; done
+		printf '{"disc":["%s","%s"],"savedata":[]}' "$(basename "$fxcue")" "$(basename "$fxcue2")" > "$work/fx2/slots"
+		nat fx2-list fx2 --frames 1 --list-panel
+		next="$(awk -v n="'Next Disc'" 'index($0, n) && $1 == "panel" { print $2; exit }' "$work/fx2-list.out")"
+		swap2="$(awk -v n="'Disc Swap'" 'index($0, n) && $1 == "panel" { print $2; exit }' "$work/fx2-list.out")"
+		# the lid goes up before the BIOS has looked at the disc
+		nat fx2-next fx2 --frames 1500 --report 100 --press "$swap2:100:120" --dump-domain RAM "$work/fx2-next.ram"
+		nat fx2-same fx2 --frames 1500 --report 100 --press "$swap2:100:120" --press "$next:110:5" --press "$next:130:5" --dump-domain RAM "$work/fx2-same.ram"
+		box fx2-box fx2 --frames 1500 --report 100 --press "$swap2:100:120"
+		for n in fx2-next fx2-same fx2-box; do stream "$work/$n.out" > "$work/$n.stream"; done
+		check "pcfx:disc-change" "with two discs the selector is live; the lid alone closes on the second disc and the selector moved there and back closes it on the first (the two runs end differently), the same in the sandbox" \
+			sh -c "grep -q \"'Next Disc' active\" '$work/fx2-list.out' && ! grep -q \"'Next Disc' active\" '$work/fx.out' && [ \"\$(tail -1 '$work/fx2-next.stream')\" != \"\$(tail -1 '$work/fx2-same.stream')\" ] && cmp -s '$work/fx2-next.stream' '$work/fx2-box.stream' && [ -s '$work/fx2-next.stream' ]"
+	else
+		report "pcfx:disc-change" SKIP "no second PC-FX disc (PCFX_GAME2)"
+	fi
+	folder fx-nobios '{"machine":"pcfx"}' disc "$fxcue"
+	nat fx-nobios fx-nobios --frames 1
+	check "pcfx:firmware-missing" "without its BIOS the console is refused, by the file's name" \
+		grep -q 'Init failed.*pcfx\.rom' "$work/fx-nobios.out" "$work/fx-nobios.err"
+else
+	for t in runs pad sandbox controls lag state-every-frame state-other-box state-rewind save-data save-pack disc-change firmware-missing; do
+		report "pcfx:$t" SKIP "no PC-FX game with the console's BIOS (PCFX_GAME, PCFX_BIOS)"
+	done
+fi
+
+# ------------------------------------------------- the Lynx, with a game
+lnx="$(ls "$lxgame"/*.lnx 2> /dev/null | head -1)"
+if [ -n "$lnx" ] && [ -f "$lxboot" ]; then
+	folder lx '{"machine":"lynx"}' cart "$lnx"; ln -sf "$lxboot" "$work/lx/lynxboot.img"
+	# A five times, five seconds apart, and the pad between
+	lxrun="--frames 2400 --report 50 --press 0:700:5 --press 0:1000:5 --press 5:1150:30 --press 0:1300:5 --press 7:1450:30 --press 0:1600:5 --press 0:1900:5"
+	nat lx-idle lx --frames 2400 --report 50
+	nat lx lx $lxrun --list-panel
+	box lx-box lx $lxrun
+	for n in lx lx-idle lx-box; do stream "$work/$n.out" > "$work/$n.stream"; done
+	pictures="$(awk '{print $7}' "$work/lx.stream" | sort -u | wc -l)"
+	check "lynx:runs" "the game runs: $pictures different pictures in 48 reports" [ "$pictures" -gt 5 ]
+	check "lynx:pad" "A and the pad change the run (the idle run's digests differ)" differ "$work/lx.stream" "$work/lx-idle.stream"
+	check "lynx:sandbox" "native and sandbox print the same $(wc -l < "$work/lx.stream") digests of RAM, picture and sound, with presses" \
+		same "$work/lx.stream" "$work/lx-box.stream"
+	check "lynx:controls" "the console's 9 buttons are live" [ "$(grep -c "^panel .* active\$" "$work/lx.out")" = 9 ]
+	lag="$(field "$work/lx.out" lag)"
+	check "lynx:lag" "lag frames are counted ($lag of 2400), and not on every frame" [ "${lag:-0}" -gt 0 -a "${lag:-0}" -lt 2400 ]
+	box lx-rerecord lx $lxrun --rerecord
+	box lx-session lx $lxrun --session
+	box lx-rewind lx --frames 2400 --report 5 --press 0:700:5 --press 0:1000:5 --rewind
+	stream "$work/lx-rerecord.out" > "$work/lx-rerecord.stream"
+	stream "$work/lx-session.out" > "$work/lx-session.stream"
+	check "lynx:state-every-frame" "a state saved and loaded every frame changes nothing" same "$work/lx-box.stream" "$work/lx-rerecord.stream"
+	check "lynx:state-other-box" "a state moved to a new sandbox half way changes nothing" same "$work/lx-box.stream" "$work/lx-session.stream"
+	check "lynx:state-rewind" "a state kept at frame 1200 and loaded at 1800: the frames after the load repeat those after the save" \
+		repeats "$work/lx-rewind.out" 1200 1800 600 5
+	folder lx-noboot '{"machine":"lynx"}' cart "$lnx"
+	nat lx-noboot lx-noboot --frames 1
+	check "lynx:firmware-missing" "without its boot ROM the console is refused, by the file's name" \
+		grep -q 'Init failed.*lynxboot\.img' "$work/lx-noboot.out" "$work/lx-noboot.err"
+else
+	for t in runs pad sandbox controls lag state-every-frame state-other-box state-rewind firmware-missing; do
+		report "lynx:$t" SKIP "no Lynx game with the console's boot ROM (LYNX_GAME, LYNX_BOOT)"
+	done
+fi
+
+# ------------------------------------------------- the Virtual Boy, with a game
+vbrom="$(ls "$vbgame"/*.vb "$vbgame"/*.vboy 2> /dev/null | head -1)"
+if [ -n "$vbrom" ]; then
+	folder vg '{"machine":"virtualboy"}' cart "$vbrom"
+	# Start and A in turn, five seconds apart
+	vgrun="--frames 3000 --report 50 --press 10:600:5 --press 10:900:5 --press 10:1200:5 --press 0:1500:5 --press 10:1800:5 --press 0:2100:5 --press 10:2400:5"
+	nat vg-idle vg --frames 3000 --report 50
+	nat vg vg $vgrun
+	box vg-box vg $vgrun
+	for n in vg vg-idle vg-box; do stream "$work/$n.out" > "$work/$n.stream"; done
+	pictures="$(awk '{print $7}' "$work/vg.stream" | sort -u | wc -l)"
+	check "vb-game:runs" "the game runs: $pictures different pictures in 60 reports" [ "$pictures" -gt 5 ]
+	check "vb-game:pad" "Start and A change the run (the idle run's digests differ)" differ "$work/vg.stream" "$work/vg-idle.stream"
+	check "vb-game:sandbox" "native and sandbox print the same $(wc -l < "$work/vg.stream") digests of RAM, picture and sound, with presses" \
+		same "$work/vg.stream" "$work/vg-box.stream"
+	box vg-rerecord vg $vgrun --rerecord
+	box vg-session vg $vgrun --session
+	box vg-rewind vg --frames 3000 --report 5 --press 10:600:5 --press 10:900:5 --press 10:1200:5 --rewind
+	stream "$work/vg-rerecord.out" > "$work/vg-rerecord.stream"
+	stream "$work/vg-session.out" > "$work/vg-session.stream"
+	check "vb-game:state-every-frame" "a state saved and loaded every frame changes nothing" same "$work/vg-box.stream" "$work/vg-rerecord.stream"
+	check "vb-game:state-other-box" "a state moved to a new sandbox half way changes nothing" same "$work/vg-box.stream" "$work/vg-session.stream"
+	check "vb-game:state-rewind" "a state kept at frame 1500 and loaded at 2250: the frames after the load repeat those after the save" \
+		repeats "$work/vg-rewind.out" 1500 2250 750 5
+	# (the save file test is "vb:save-data": a game may wipe a save it does not
+	# recognise, as Virtual Boy Wario Land does)
+else
+	for t in runs pad sandbox state-every-frame state-other-box state-rewind; do
+		report "vb-game:$t" SKIP "no Virtual Boy game (VB_GAME)"
+	done
+fi
 
 # ------------------------------------------------- in Chimera's engine
 engine="$chimera_root/build/meson-linux/chimera-run"
@@ -346,8 +538,10 @@ print('saturn_jp.bin' if 'starts with the Japanese BIOS' in n else 'saturn_na_eu
 			--screenshot "1499=$work/ss-idle.tga" > "$work/ss-idle.engine" 2>&1
 		check "engine:saturn" "a Saturn project with its BIOS as firmware plays a 1500-frame movie in Chimera's engine, and the movie's presses of Start change the last picture" \
 			sh -c "grep -q '^frames=1500' '$work/ss.engine' && grep -q '^frames=1500' '$work/ss-idle.engine' && [ -s '$work/ss.tga' ] && ! cmp -s '$work/ss.tga' '$work/ss-idle.tga'"
-		check "engine:saturn-bus" "Chimera's RAM search reads the Saturn's bus: $(grep -o '2 live ranges, [0-9]* of [0-9]* bytes searched' "$work/ss.engine")" \
-			grep -q "2 live ranges, 2097152 of 134217728 bytes searched, every candidate live and reading what the bus peeks" "$work/ss.engine"
+		# the two work RAMs (2 MB), the sound, VDP1 and VDP2 memories (512 KB each)
+		# and the colour memory (4 KB)
+		check "engine:saturn-bus" "Chimera's RAM search reads the Saturn's bus: $(grep -o '[0-9]* live ranges, [0-9]* of [0-9]* bytes searched' "$work/ss.engine")" \
+			grep -q "6 live ranges, 3674112 of 134217728 bytes searched, every candidate live and reading what the bus peeks" "$work/ss.engine"
 		if [ -n "$game_chd" ] && [ -f "$game_chd" ]; then
 			python3 "$mk" "$pkg" "$work/ss-chd.chimeraProject" 1500 machine=saturn "panel=$work/ss.out" \
 				"press=P1 Start:900:10" "press=P1 Start:1300:10" "firmware=$id=$bios" -- "disc=$game_chd" > "$work/ss-chd.project.log" 2>&1
@@ -363,8 +557,36 @@ print('saturn_jp.bin' if 'starts with the Japanese BIOS' in n else 'saturn_na_eu
 		report "engine:saturn-bus" SKIP "no Saturn game with its BIOS files"
 		report "engine:saturn-chd" SKIP "no Saturn game with its BIOS files"
 	fi
+	if [ -n "$fxcue" ] && [ -f "$fxbios" ]; then
+		python3 "$mk" "$pkg" "$work/fx.chimeraProject" 2000 machine=pcfx "panel=$work/fx.out" \
+			"press=P1 I:1400:10" "press=P1 Run:1700:10" "firmware=pcfx.rom=$fxbios" -- "disc=$fxcue" > "$work/fx.project.log" 2>&1
+		python3 "$mk" "$pkg" "$work/fx-idle.chimeraProject" 2000 machine=pcfx "panel=$work/fx.out" \
+			"firmware=pcfx.rom=$fxbios" -- "disc=$fxcue" >> "$work/fx.project.log" 2>&1
+		"$engine" --project "$work/fx.chimeraProject" "$pkg" --files "$fxgame" --firmware "pcfx.rom=$fxbios" \
+			--screenshot "1999=$work/fx.tga" > "$work/fx.engine" 2>&1
+		"$engine" --project "$work/fx-idle.chimeraProject" "$pkg" --files "$fxgame" --firmware "pcfx.rom=$fxbios" \
+			--screenshot "1999=$work/fx-idle.tga" > "$work/fx-idle.engine" 2>&1
+		check "engine:pcfx" "a PC-FX project with its BIOS as firmware plays a 2000-frame movie in Chimera's engine, and the movie's presses change the last picture" \
+			sh -c "grep -q '^frames=2000' '$work/fx.engine' && grep -q '^frames=2000' '$work/fx-idle.engine' && [ -s '$work/fx.tga' ] && ! cmp -s '$work/fx.tga' '$work/fx-idle.tga'"
+	else
+		report "engine:pcfx" SKIP "no PC-FX game with the console's BIOS"
+	fi
+	if [ -n "$lnx" ] && [ -f "$lxboot" ]; then
+		python3 "$mk" "$pkg" "$work/lx.chimeraProject" 1200 machine=lynx "panel=$work/lx.out" \
+			"press=P1 A:700:5" "press=P1 A:1000:5" "firmware=lynxboot.img=$lxboot" -- "cart=$lnx" > "$work/lx.project.log" 2>&1
+		python3 "$mk" "$pkg" "$work/lx-idle.chimeraProject" 1200 machine=lynx "panel=$work/lx.out" \
+			"firmware=lynxboot.img=$lxboot" -- "cart=$lnx" >> "$work/lx.project.log" 2>&1
+		"$engine" --project "$work/lx.chimeraProject" "$pkg" --files "$lxgame" --firmware "lynxboot.img=$lxboot" \
+			--save-state "1199=$work/lx-engine.state" > "$work/lx.engine" 2>&1
+		"$engine" --project "$work/lx-idle.chimeraProject" "$pkg" --files "$lxgame" --firmware "lynxboot.img=$lxboot" \
+			--save-state "1199=$work/lx-idle-engine.state" > "$work/lx-idle.engine" 2>&1
+		check "engine:lynx" "a Lynx project with its boot ROM as firmware plays a 1200-frame movie in Chimera's engine, and the movie's presses of A make another state than the idle movie's" \
+			sh -c "grep -q '^frames=1200' '$work/lx.engine' && grep -q '^frames=1200' '$work/lx-idle.engine' && [ -s '$work/lx-engine.state' ] && ! cmp -s '$work/lx-engine.state' '$work/lx-idle-engine.state'"
+	else
+		report "engine:lynx" SKIP "no Lynx game with the console's boot ROM"
+	fi
 else
-	for t in vb saturn saturn-bus saturn-chd; do
+	for t in vb saturn saturn-bus saturn-chd pcfx lynx; do
 		report "engine:$t" SKIP "set CHIMERA_ROOT to a Chimera checkout with build/meson-linux/chimera-run and this core's package (waterbox/build-package.sh -r <it>)"
 	done
 fi

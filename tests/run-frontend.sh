@@ -11,7 +11,11 @@
 #    SATURN_BIOS_NA_EU, as waterbox/run-gate.sh takes them): the window asks
 #    the core which BIOS the disc needs and takes it from Chimera's
 #    firmware, and without that firmware it refuses the project and names
-#    the file.
+#    the file;
+#  - with a PC-FX game and the console's BIOS (PCFX_GAME, PCFX_BIOS) and with
+#    a Lynx game and the console's boot ROM (LYNX_GAME, LYNX_BOOT): the
+#    project opens with that file from Chimera's firmware and runs in the
+#    window, with a picture of the console's size.
 #
 # Usage: tests/run-frontend.sh --chimera-root <chimera checkout> [--frames N] [--keep]
 #   --keep   leave the work folder (logs, configurations, projects) and say where it is
@@ -40,6 +44,10 @@ chimera_root="$(cd "$chimera_root" && pwd)"
 game="${SATURN_GAME:-$here/games-local/vfremix}"
 bios_jp="${SATURN_BIOS_JP:-$here/roms-local/sega_101.bin}"
 bios_na="${SATURN_BIOS_NA_EU:-$here/roms-local/mpr-17933.bin}"
+fxgame="${PCFX_GAME:-$here/games-local/pcfx}"
+fxbios="${PCFX_BIOS:-$here/roms-local/pcfx.rom}"
+lxgame="${LYNX_GAME:-$here/games-local/lynx}"
+lxboot="${LYNX_BOOT:-$here/roms-local/lynxboot.img}"
 
 emu_exe="$chimera_root/build/Chimera.exe"
 package="$chimera_root/build/Cores/mednafen.chimeraCore"
@@ -191,6 +199,36 @@ print('saturn_jp.bin' if 'starts with the Japanese BIOS' in json.loads(t[t.index
 		report "window:saturn" FAIL "frames $(value ss frames) of $frames, picture $(value ss width)x$(value ss height)"
 	fi
 	rm -rf "$fwdir"
+fi
+
+# ---- the PC-FX and the Lynx, where there is a game and the console's firmware
+# window_machine <tag> <console's name> <machine> <slot> <game file> <firmware id> <firmware file> <least width> <least height>
+window_machine() {
+	local tag="$1" name="$2" machine="$3" slot="$4" gamefile="$5" id="$6" file="$7" w="$8" h="$9" fwdir
+	fwdir="$(mktemp -d)"
+	cp "$file" "$fwdir/$id"
+	python3 "$here/settings-config.py" "$config" "$work/config.$tag.ini" '{}' "{\"$id\": \"$fwdir/$id\"}"
+	make_project "$tag" $((frames + 100)) "$machine" "$slot" "$gamefile" "$id=$fwdir/$id"
+	if ! run_frontend "$tag" "$work/config.$tag.ini" "$frames" ""; then
+		report "window:$tag" FAIL "Chimera did not finish the run: $(value "$tag" detail) $(tail -2 "$work/$tag.log" | tr '\n' ' ' | cut -c1-200)"
+	elif [ "$(value "$tag" frames)" = "$frames" ] && [ "$(value "$tag" width)" -ge "$w" ] 2> /dev/null && [ "$(value "$tag" height)" -ge "$h" ] 2> /dev/null; then
+		report "window:$tag" PASS "a $name project opened with $id from Chimera's firmware and ran $frames frames in the window; its picture is $(value "$tag" width)x$(value "$tag" height)"
+	else
+		report "window:$tag" FAIL "frames $(value "$tag" frames) of $frames, picture $(value "$tag" width)x$(value "$tag" height)"
+	fi
+	rm -rf "$fwdir"
+}
+fxcue="$(ls "$fxgame"/*.cue 2> /dev/null | head -1)"
+if [ -n "$fxcue" ] && [ -f "$fxbios" ]; then
+	window_machine pcfx "PC-FX" pcfx disc "$fxcue" pcfx.rom "$fxbios" 256 224
+else
+	report "window:pcfx" SKIP "needs a PC-FX game (PCFX_GAME) and the console's BIOS (PCFX_BIOS)"
+fi
+lnx="$(ls "$lxgame"/*.lnx 2> /dev/null | head -1)"
+if [ -n "$lnx" ] && [ -f "$lxboot" ]; then
+	window_machine lynx "Lynx" lynx cart "$lnx" lynxboot.img "$lxboot" 160 102
+else
+	report "window:lynx" SKIP "needs a Lynx game (LYNX_GAME) and the console's boot ROM (LYNX_BOOT)"
 fi
 
 echo

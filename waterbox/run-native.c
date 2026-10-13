@@ -64,6 +64,8 @@ extern const int64_t *GetBusRanges(int32_t bus);
 extern const uint8_t *ReadBus(int32_t bus, int64_t addr, int32_t len);
 static const int64_t *bus_ranges(void) { return GetBusRanges(0); }
 static const uint8_t *bus_read(int64_t addr, int32_t len) { return ReadBus(0, addr, len); }
+extern void PokeBus(int32_t bus, int32_t addr, int32_t value);
+static void bus_poke(int32_t addr, int32_t value) { PokeBus(0, addr, value); }
 
 int main(int argc, char **argv)
 {
@@ -113,6 +115,7 @@ int main(int argc, char **argv)
 		.domain_size = GetMemoryDomainSize,
 		.bus_ranges = bus_ranges,
 		.bus_read = bus_read,
+		.bus_poke = bus_poke,
 		.pre_frame = NULL,
 		.save_count = save_count,
 		.save_name = save_name,

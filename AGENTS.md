@@ -71,11 +71,16 @@ bash tests/run-frontend.sh --chimera-root <chimera>
 The test script must end with `0 failed`. Run it before every commit that
 changes the core, and say in the commit what it printed.
 
-The Virtual Boy tests need no file. The Saturn tests need a game and the two
-BIOS files, which this repository cannot contain (`SATURN_GAME`,
-`SATURN_GAME2`, `SATURN_GAME_CHD`, `SATURN_BIOS_JP`, `SATURN_BIOS_NA_EU`, or `tests/games-local`
-and `tests/roms-local`). Without them the script says SKIP. A skipped test
-proves nothing: if you do not have the files, say so in your report.
+The "vb:" tests need no file: the script assembles a small Virtual Boy
+program. Every other system's tests need a game, and all but the Virtual
+Boy's the console's BIOS or boot ROM, which this repository cannot contain.
+The script looks for them under `tests/games-local` and `tests/roms-local`
+(the folder and file names are at the top of `waterbox/run-gate.sh`, with
+the environment variables that point elsewhere: `SATURN_GAME`,
+`SATURN_GAME2`, `SATURN_GAME_CHD`, `SATURN_BIOS_JP`, `SATURN_BIOS_NA_EU`,
+`PCFX_GAME`, `PCFX_GAME2`, `PCFX_BIOS`, `LYNX_GAME`, `LYNX_BOOT`,
+`VB_GAME`). Without them the script says SKIP. A skipped test proves
+nothing: if you do not have the files, say so in your report.
 
 ## Rules
 
@@ -96,7 +101,8 @@ proves nothing: if you do not have the files, say so in your report.
   threads are patched out (0001, 0002); do not add one.
 - **The machine's state is its memory.** A savestate is the sandbox's copy
   of the core's memory, so nothing a game can change may live in a file or
-  in memory marked invisible. Save data stays in memory (patch 0007). An
+  in memory marked invisible. Save data stays in memory (patches 0007 and
+  0008). An
   open file's position is NOT in a savestate: seek before every read (patch
   0004), and test with `run-wbx --rewind`, which is the test that finds it.
 - **Files are found by plain name.** The sandbox has no folders: `name`, not

@@ -73,7 +73,7 @@ const system_entry kSystems[] = {
 const system_entry *g_entry;
 
 // ---- one frame's results ---------------------------------------------------
-constexpr int kSampleRate = 48000;
+constexpr int kSampleRate = 44100;
 constexpr int kMaxSamples = 4096;
 MDFN_Surface *g_surface;
 EmulateSpecStruct g_spec;
@@ -97,6 +97,10 @@ struct memory_area
 	uint8_t *bytes;
 	uint32_t size;
 	bool words;                   // 16-bit words in the host's order
+	// for a memory of words that is not simply read and written in place:
+	// what the machine's processor would do with the byte at an offset
+	uint8_t (*peek)(uint32_t offset);
+	void (*poke)(uint32_t offset, uint8_t value);
 };
 std::vector<memory_area> g_memory;
 
@@ -127,13 +131,29 @@ const memory_area *domain_at(int index)
 	return nullptr;
 }
 
-// the byte the console's processor finds at an address of the bus
-uint8_t *bus_byte(int64_t address)
+// the memory of words an address of the bus is in
+const memory_area *bus_area(int64_t address)
 {
 	for (auto const &m : g_memory)
-		if (m.words && address >= m.address && address < int64_t(m.address) + m.size)
-			return &m.bytes[(address - m.address) ^ 1];   // the host is little-endian, the console is not
+		if (m.words && address >= m.address && address < int64_t(m.address) + m.size) return &m;
 	return nullptr;
+}
+// the byte the console's processor finds at an address of the bus (0 where
+// there is no memory), and a write of one
+uint8_t bus_peek(int64_t address)
+{
+	const memory_area *m = bus_area(address);
+	if (!m) return 0;
+	uint32_t const offset = uint32_t(address - m->address);
+	return m->peek ? m->peek(offset) : m->bytes[offset ^ 1];   // the host is little-endian, the console is not
+}
+void bus_poke(int64_t address, uint8_t value)
+{
+	const memory_area *m = bus_area(address);
+	if (!m) return;
+	uint32_t const offset = uint32_t(address - m->address);
+	if (m->poke) m->poke(offset, value);
+	else m->bytes[offset ^ 1] = value;
 }
 bool has_bus()
 {
@@ -778,7 +798,7 @@ void frontend_add_memory(uint32_t address, uint8_t *bytes, uint32_t size)
 	snprintf(name, sizeof name, "RAM %08X", unsigned(address));
 	for (auto const &n : kNames)
 		if (g_machine == n.machine && address == n.address) snprintf(name, sizeof name, "%s", n.name);
-	g_memory.push_back({ name, address, bytes, size, false });
+	g_memory.push_back({ name, address, bytes, size, false, nullptr, nullptr });
 }
 
 std::string frontend_save_path(const char *ext)
@@ -798,9 +818,9 @@ void MDFN_ChimeraSaveMemory(const char *ext, void *memory, uint64 bytes, bool wo
 	g_saves.push_back({ ext, static_cast<uint8_t *>(memory), bytes, words });
 }
 void MDFN_ChimeraInputRead(void) { g_inputRead = true; }
-void MDFN_ChimeraWordMemory(const char *name, uint32 address, uint16 *words, uint32 bytes)
+void MDFN_ChimeraWordMemory(const char *name, uint32 address, uint16 *words, uint32 bytes, uint8 (*peek)(uint32), void (*poke)(uint32, uint8))
 {
-	g_memory.push_back({ name, address, reinterpret_cast<uint8_t *>(words), bytes, true });
+	g_memory.push_back({ name, address, reinterpret_cast<uint8_t *>(words), bytes, true, peek, poke });
 }
 }
 int64_t frontend_time() { return g_time; }
@@ -962,44 +982,45 @@ ECL_EXPORT uint8_t *GetMemoryDomainPtr(int i) { return domain_at(i) ? domain_at(
 ECL_EXPORT int64_t GetMemoryDomainSize(int i) { return domain_at(i) ? domain_at(i)->size : 0; }
 ECL_EXPORT int GetMemoryDomainWritable(int i) { return domain_at(i) != nullptr; }
 
-// The Saturn's memory as its processors address it (see memory_area). The bus
-// is mostly nothing: its ranges say where the RAM is.
+// The Saturn's memory as its processors address it (see memory_area): the two
+// work RAMs, the sound processor's RAM, the two video processors' memories,
+// the colour memory, and a RAM cartridge's when one is in. The bus is mostly
+// nothing: its ranges say where these are.
 ECL_EXPORT int32_t GetBusCount(void) { return has_bus() ? 1 : 0; }
 ECL_EXPORT const char *GetBusName(int32_t i) { return i == 0 && has_bus() ? "System Bus" : ""; }
 ECL_EXPORT int64_t GetBusSize(int32_t i) { return i == 0 && has_bus() ? 0x08000000 : 0; }
 ECL_EXPORT int32_t GetBusWritable(int32_t i) { return i == 0 && has_bus(); }
 ECL_EXPORT int32_t PeekBus(int32_t bus, int32_t addr)
 {
-	const uint8_t *at = bus == 0 ? bus_byte(int64_t(uint32_t(addr))) : nullptr;
-	return at ? *at : 0;
+	return bus == 0 ? bus_peek(int64_t(uint32_t(addr))) : 0;
 }
 ECL_EXPORT void PokeBus(int32_t bus, int32_t addr, int32_t value)
 {
-	uint8_t *at = bus == 0 ? bus_byte(int64_t(uint32_t(addr))) : nullptr;
-	if (at) *at = uint8_t(value);
+	if (bus == 0) bus_poke(int64_t(uint32_t(addr)), uint8_t(value));
 }
 ECL_EXPORT const uint8_t *ReadBus(int32_t bus, int64_t addr, int32_t len)
 {
 	// an answer to a tool is in no savestate
 	ECL_INVISIBLE static uint8_t buffer[0x10000];
 	if (bus != 0 || len < 0 || len > int32_t(sizeof buffer)) return nullptr;
-	for (int32_t i = 0; i < len; i++)
-	{
-		const uint8_t *at = bus_byte(addr + i);
-		buffer[i] = at ? *at : 0;
-	}
+	for (int32_t i = 0; i < len; i++) buffer[i] = bus_peek(addr + i);
 	return buffer;
 }
 ECL_EXPORT const int64_t *GetBusRanges(int32_t bus)
 {
 	ECL_INVISIBLE static int64_t ranges[2 * 16];
 	if (bus != 0 || !has_bus()) return nullptr;
-	size_t n = 0;
+	// in the order of their addresses, whatever order the machine told of them in
+	std::vector<std::pair<int64_t, int64_t>> live;
 	for (auto const &m : g_memory)
-		if (m.words && n + 4 <= sizeof ranges / sizeof ranges[0])
+		if (m.words) live.push_back({ m.address, m.size });
+	std::sort(live.begin(), live.end());
+	size_t n = 0;
+	for (auto const &r : live)
+		if (n + 4 <= sizeof ranges / sizeof ranges[0])
 		{
-			ranges[n++] = m.address;
-			ranges[n++] = m.size;
+			ranges[n++] = r.first;
+			ranges[n++] = r.second;
 		}
 	ranges[n] = ranges[n + 1] = 0;
 	return ranges;

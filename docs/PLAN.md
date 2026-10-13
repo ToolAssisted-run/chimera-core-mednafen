@@ -83,13 +83,16 @@ Mednafen is a numbered patch in `patches/`.
 - Saturn: Virtua Fighter Remix (USA) and Virtua Fighter 2 (Japan), and the
   BIOS files. Both run; the second starts with the Japanese BIOS and in the
   console's 704x480 mode.
-- Lynx: the boot ROM, no game.
-- PC-FX: the BIOS (`pcfx.rom`), no game.
-- Virtual Boy: no game. The tests assemble a small program for it
-  (`tests/make-vb-program.py`), which is the only thing it has run.
+- Lynx: the boot ROM, and since 2026-10-13 California Games and Chip's
+  Challenge.
+- PC-FX: the BIOS (`pcfx.rom`), and since 2026-10-13 Last Imperial Prince
+  (Japan), both discs.
+- Virtual Boy: since 2026-10-13 Virtual Boy Wario Land, Mario Clash and Red
+  Alarm. The tests also assemble a small program for it
+  (`tests/make-vb-program.py`), which runs where no game may be.
 
-So the Saturn can be proven with games now. The other three need a game
-each from the owner before anything can be said of them beyond "it builds".
+Until 2026-10-13 only the Saturn had games here; the sections below that are
+dated 2026-10-12 say so of the other three.
 
 ## Steps
 
@@ -98,10 +101,10 @@ each from the owner before anything can be said of them beyond "it builds".
 | 1 | Native build of the four systems and the frontend; the Saturn boots a game | Picture, sound, a controller press changes the picture | done 2026-10-12: Virtua Fighter Remix, BIOS logo, attract fight, Start changes the picture |
 | 2 | The same in the sandbox, with the Saturn's helper thread gone | The reference and the sandbox give the same digests, frame by frame; savestates | done 2026-10-12: 1,500 frames the same natively, in the sandbox, with a state saved and loaded every frame, with the state moved to a new sandbox, and after going back to a kept state |
 | 3 | Controllers and settings generated from Mednafen's descriptions; the package | Chimera's package checks; a project run by Chimera's engine | done 2026-10-12: 743 buttons and 232 axes over the four systems, 58 settings; Chimera's package checks pass (18 of 18); a project of Virtua Fighter Remix with its BIOS as firmware plays a movie in Chimera's engine and the movie's presses reach the game |
-| 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | waits for games |
+| 4 | Virtual Boy, PC-FX, Lynx with games | Each boots a game the same natively and in the sandbox | done 2026-10-13: see "Games for the other three systems" below |
 | 5 | Save data, lag frames, disc change, CHD | Tests for each | done 2026-10-12: lag frames (all four systems), memory for RAM Watch and RAM Search, the Saturn's save data, the drive's lid and disc selector, CHD images |
 | 6 | Windows, CI (a self-made Virtual Boy program), documents | The test script on a runner | done 2026-10-12 except a run on a CI runner: the test script (32 tests), the window test (4), README, AGENTS.md, the CI workflow (never run: the repository is not published; a fresh clone builds and passes the 13 tests that need no file). Windows: Chimera's headless runner plays the Virtual Boy project and a 1,500-frame Saturn movie with presses and ends on the same RAM and the same pictures as Linux |
-| 7 | Publishing | The owner's word | not started |
+| 7 | Publishing | The owner's word | on hold by the owner (2026-10-12) |
 
 ## What the first two steps found
 
@@ -146,7 +149,9 @@ each from the owner before anything can be said of them beyond "it builds".
   before the machine is built (patch 0005). The two files are mounted under
   names of this core's own, because Mednafen refuses a file named like one
   known BIOS that holds another.
-- **Not done yet**: the Saturn's ST-V arcade board.
+- **Not done**: the Saturn's ST-V arcade board. Mednafen 1.32 has it, and
+  its controls are left out of the package. No ST-V game was at hand
+  (2026-10-13), and a machine that has run nothing is not added.
 
 ## What step 5 decided
 
@@ -157,14 +162,14 @@ each from the owner before anything can be said of them beyond "it builds".
   Saturn keeps its RAM as 16-bit words in the host's byte order, so a plain
   view of it would show every pair of bytes swapped: its two work RAMs are
   read through a bus ("System Bus"), at the console's own addresses
-  (0x00200000 and 0x06000000) and in the console's byte order. The video
-  chips' and the sound chip's memory are not on it yet.
+  (0x00200000 and 0x06000000) and in the console's byte order. (The video
+  chips' and the sound chip's memory joined it on 2026-10-13, below.)
 - **Save data** (the Saturn): the backup memory and the backup cartridge
   stay in the machine's memory, and Mednafen's writing of save files is
   turned off (patch 0007). Export Save Data writes `saturn.bkr` and
   `saturn.bcr`, the files Mednafen itself would write, and a project's Save
-  data slot takes them back by extension. The PC-FX's and the Virtual Boy
-  cartridge's saves are not exported yet: there is no game to test with.
+  data slot takes them back by extension. (The PC-FX's and the Virtual Boy
+  cartridge's saves followed on 2026-10-13, below.)
 - **The Virtual Boy test program** draws nothing. It counts in RAM and
   copies the pad there, which is enough to compare the sandbox with the
   reference, to test savestates and to test lag frames, on a CI runner.
@@ -214,3 +219,87 @@ unswapped the two differ from frame 1750, so the comparison does see them.
 The savestate tests pass on the CHD, the one that goes back to a kept state
 among them, and a project whose disc is the CHD ends on the same picture in
 Chimera's engine.
+
+## Games for the other three systems (2026-10-13)
+
+The owner brought games for the Virtual Boy, the PC-FX and the Lynx. All
+three systems ran them at the first try, natively and in the sandbox with
+the same digests. What was run, and what the test script now asks of each
+(`pcfx:`, `lynx:`, `vb-game:`; the files are named in docs/BUILDING.md):
+
+- **Lynx**: California Games (its title screen) and Chip's Challenge (into
+  its story text; A changes the run). 2,400 frames with presses are the same
+  natively and in the sandbox, with a state saved and loaded every frame,
+  with the state moved to a new sandbox, and after going back to a kept
+  state. The boot ROM is needed: without it the console is refused by the
+  file's name.
+- **Virtual Boy**: Virtual Boy Wario Land (into the first stage), Mario
+  Clash and Red Alarm (into play). 3,000 frames of Wario Land with presses
+  pass the same comparisons. The default picture is Mednafen's: both eyes in
+  one picture, the left in red and the right in blue, so what both eyes see
+  is magenta. The setting "How The Two Eyes Are Shown" and the colour
+  settings change that.
+- **PC-FX**: Last Imperial Prince (Japan). The BIOS starts the disc, the
+  game shows its menu and plays its opening film from the disc. 3,000 frames
+  with presses pass the same comparisons; the state kept at frame 1,500 and
+  loaded at 2,250 is while the film plays from the disc. With the game's
+  second disc in the project the selector is live, and the lid closes on the
+  disc the selector is on.
+
+**Save data of the PC-FX and of Virtual Boy cartridges** (patch 0008). The
+PC-FX wrote its backup memory to a file two seconds after a game changed
+it, which in the sandbox was an error message every time; the Virtual Boy
+writes a cartridge's memory when a game is closed. Both now stay in memory,
+as the Saturn's do, and Export Save Data writes `pcfx.sav` (the console's
+backup memory, 32 KB), `pcfx.fxb` (the memory pack, 128 KB) and
+`virtualboy.sav` (64 KB). The Save data slot takes `.sav` and `.fxb` files
+for these two machines. A changed copy of each PC-FX file given to a project
+comes out as it went in. On the Virtual Boy that test uses the test program:
+Wario Land wipes a save it does not recognise, which looked like a failure
+of the core and was not (the changed bytes are in memory at the first frame
+and gone by the thirtieth).
+
+**The Saturn's other memories on the bus** (patch 0009): the sound
+processor's RAM (0x05A00000, 512 KB), the VDP1's memory (0x05C00000, 512
+KB), the VDP2's memory (0x05E00000, 512 KB), the colour memory (0x05F00000,
+4 KB), and a RAM cartridge's (0x02400000 and 0x02600000) when the Cartridge
+setting puts one in. Chimera's RAM search now reads 6 ranges and 3,674,112
+bytes of the bus with no cartridge. Two things were found on the way:
+
+- Mednafen's drawing code keeps its own copy of the VDP2's memory and of
+  the colours. A byte written into the first copy reads back and is never
+  seen. So a write to these two goes the way a game's write goes. Measured:
+  the three colours of a loading screen's text written through the bus
+  turned the text red; with the write made in place instead, the picture
+  did not change (the test `saturn:bus-write` fails on that).
+- Where a colour is kept depends on the colour mode, so the colour memory
+  is read through the function a game's read goes through, not in place.
+
+**The sound is 44.1 kHz**, not 48. The Saturn's sound chip and a CD's audio
+run at 44.1 kHz, and Mednafen converted both to the 48 kHz the core asked
+for. Asked for 44.1 kHz, Mednafen converts neither. The other three
+systems' sound is made at whatever rate is asked, so one rate serves all
+four.
+
+**The test runner** can write to the bus (`--poke`), for the test above.
+
+**Windows.** Chimera's headless runner, built for Windows, played a movie
+with presses of a game of each system (Wario Land 2,000 frames, Chip's
+Challenge 2,000, Last Imperial Prince 2,500, Virtua Fighter Remix 1,500):
+the RAM and the last picture are byte for byte those of the Linux runner.
+Chimera's window on Windows opened a project of each, the Lynx's, the
+PC-FX's and the Saturn's with their firmware from Chimera's Firmware
+settings, and ran it; the RAM it left is the Linux runner's at the same
+frame. (The window's script stopped at frame 302 where it asked for 300, on
+Windows only. That is Chimera's script timing, not this core's, and the
+comparison was made at frame 302.)
+
+Counts: the test script 68 passed, 0 failed, 0 skipped with every file and
+Chimera's engine; the window test 6 passed; Chimera's package checks 18 of
+18. Each new kind of test was broken once and seen to fail: the bus handing
+bytes out in the host's order, a bus write made in place, and a save file
+not found.
+
+What is still not done: the ST-V arcade board (no game), a CHD of a PC-FX
+disc (not tried), and a run on a CI runner (the repository is not
+published).

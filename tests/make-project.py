@@ -141,8 +141,12 @@ def main():
     for k, v in overrides:
         settings[k] = v
 
+    # a file that was given stands for the package's entry of the same id: the
+    # project records the hash of the file it was made with
+    named = {g["id"] for g in given}
     firmware = [{"id": d["id"], "sha1": d.get("sha1", "")}
-                for d in cfg.get("firmware", []) if holds(d.get("requiredWhen"), settings)] + given
+                for d in cfg.get("firmware", [])
+                if d["id"] not in named and holds(d.get("requiredWhen"), settings)] + given
 
     project = {
         "id": "mednafen-test-%s" % os.path.splitext(files[0]["name"])[0],

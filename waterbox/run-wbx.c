@@ -135,6 +135,9 @@ static busrangesfn g_GetBusRanges;
 static busreadfn g_ReadBus;
 static const int64_t *core_bus_ranges(void) { return (const int64_t *)g_GetBusRanges(0); }
 static const uint8_t *core_bus_read(int64_t addr, int32_t len) { return (const uint8_t *)g_ReadBus(0, addr, len); }
+typedef void (MB_GUEST_ABI *buspokefn)(int32_t, int32_t, int32_t);
+static buspokefn g_PokeBus;
+static void core_bus_poke(int32_t addr, int32_t value) { g_PokeBus(0, addr, value); }
 
 static void core_pre_frame(void)
 {
@@ -261,6 +264,7 @@ static void resolve_exports(void)
 	g_GetMemoryDomainSize = (i64fn_i)proc(g_host, "GetMemoryDomainSize");
 	g_GetBusRanges = (busrangesfn)proc(g_host, "GetBusRanges");
 	g_ReadBus = (busreadfn)proc(g_host, "ReadBus");
+	g_PokeBus = (buspokefn)proc(g_host, "PokeBus");
 }
 
 int main(int argc, char **argv)
@@ -318,6 +322,7 @@ int main(int argc, char **argv)
 		.domain_size = core_domain_size,
 		.bus_ranges = core_bus_ranges,
 		.bus_read = core_bus_read,
+		.bus_poke = core_bus_poke,
 		.pre_frame = core_pre_frame,
 		.save_count = core_save_count,
 		.save_name = core_save_name,

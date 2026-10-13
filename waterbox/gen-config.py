@@ -403,8 +403,8 @@ def main():
             "getBgra": "GetVideoBgra",
         },
         "audio": {
-            "_comment": "Mednafen's mix of the machine's sound, converted by Mednafen to 48 kHz stereo.",
-            "rate": 48000, "samplesPerFrame": 4096, "channels": 2, "get": "GetAudio",
+            "_comment": "Mednafen's mix of the machine's sound at 44.1 kHz stereo. That is the rate of the Saturn's sound chip and of a CD's audio, so neither is converted; the other three systems' sound is made at whatever rate is asked for.",
+            "rate": 44100, "samplesPerFrame": 4096, "channels": 2, "get": "GetAudio",
         },
         "lag": {"inputWasRead": "InputWasRead"},
         "systemNames": system_names,

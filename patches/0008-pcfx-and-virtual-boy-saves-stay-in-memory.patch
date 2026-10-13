@@ -1,0 +1,82 @@
+The PC-FX's and the Virtual Boy's saves stay in memory too.
+
+Patch 0007 did this for the Saturn. The PC-FX writes its backup memory to
+a file two seconds after a game changes it, and the Virtual Boy writes a
+cartridge's memory when the game is closed. In Chimera a save is part of
+the machine's memory, where a savestate holds it, and the user writes it
+to a file with Export Save Data.
+
+So the PC-FX's two save functions and the Virtual Boy's write do nothing,
+and both systems say where their save memories are
+(MDFN_ChimeraSaveMemory): the PC-FX's own backup memory ("sav", 32 KB) and
+its memory pack's ("fxb", 128 KB), and a Virtual Boy cartridge's ("sav",
+64 KB). Loading is untouched.
+
+--- a/src/pcfx/pcfx.cpp
++++ b/src/pcfx/pcfx.cpp
+@@ -780,6 +780,15 @@
+ 
+  MDFN_BackupSavFile(10, "sav");
+  MDFN_BackupSavFile(10, "fxb");
++#if defined(CHIMERA_CORE)
++ // chimera: the memories that outlive the power switch, for Export Save Data:
++ // the console's own backup memory and the memory pack's
++ if(!BRAMDisabled)
++ {
++  MDFN_ChimeraSaveMemory("sav", BackupRAM, 0x8000, false);
++  MDFN_ChimeraSaveMemory("fxb", ExBackupRAM, 0x20000, false);
++ }
++#endif
+ 
+  // Default to 16-bit bus.
+  for(int i = 0; i < 256; i++)
+@@ -979,6 +988,11 @@
+ 
+ static void SaveBackupMemory(void)
+ {
++#if defined(CHIMERA_CORE)
++ // chimera: a save stays in the machine's memory, where a savestate holds it;
++ // Chimera writes it to a file when the user exports it.
++ return;
++#endif
+  if(!BRAMDisabled)
+  {
+   FileStream fp(MDFN_MakeFName(MDFNMKF_SAV, 0, "sav"), FileStream::MODE_WRITE_INPLACE);
+@@ -992,6 +1006,11 @@
+ 
+ static void SaveExternalBackupMemory(void)
+ {
++#if defined(CHIMERA_CORE)
++ // chimera: a save stays in the machine's memory, where a savestate holds it;
++ // Chimera writes it to a file when the user exports it.
++ return;
++#endif
+  if(!BRAMDisabled)
+  {
+   FileStream fp(MDFN_MakeFName(MDFNMKF_SAV, 0, "fxb"), FileStream::MODE_WRITE_INPLACE);
+--- a/src/vb/vb.cpp
++++ b/src/vb/vb.cpp
+@@ -666,6 +666,10 @@
+    if(e.GetErrno() != ENOENT)
+     throw;
+   }
++#if defined(CHIMERA_CORE)
++  // chimera: the cartridge's battery-backed memory, for Export Save Data
++  MDFN_ChimeraSaveMemory("sav", GPRAM, 65536, false);
++#endif
+ 
+   VIP_Init();
+   VB_VSU = new VSU();
+@@ -757,6 +761,12 @@
+ 
+ static MDFN_COLD void CloseGame(void)
+ {
++#if defined(CHIMERA_CORE)
++ // chimera: a save stays in the machine's memory, where a savestate holds it;
++ // Chimera writes it to a file when the user exports it.
++ Cleanup();
++ return;
++#endif
+  // Only save cart RAM if it has been modified.
+  for(unsigned int i = 0; i < GPRAM_Mask + 1; i++)
+  {
