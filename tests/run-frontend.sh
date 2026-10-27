@@ -1,6 +1,6 @@
 #!/bin/bash
-# The window test: the package loaded by Chimera itself (Chimera.exe under
-# Mono, on a private Xvfb display, with nobody at it), not by its headless
+# The window test: the package loaded by Chimera itself (Chimera's
+# window, run headless, with nobody at it), not by its headless
 # runner. What is asked:
 #  - the Virtual Boy program the tests assemble (tests/make-vb-program.py)
 #    runs in the window as a project: the frames asked for, a picture of the
@@ -20,7 +20,7 @@
 #
 # Usage: tests/run-frontend.sh --chimera-root <chimera checkout> [--frames N] [--keep]
 #   --keep   leave the work folder (logs, configurations, projects) and say where it is
-# Needs: mono, Xvfb, Chimera built with its window (dotnet build), and the
+# Needs: Chimera built with its window (its tools/ci-chimera.sh), and the
 # package installed in that checkout (waterbox/build-package.sh -r <chimera>).
 set -u
 
@@ -52,41 +52,30 @@ lxboot="${LYNX_BOOT:-$here/roms-local/lynxboot.img}"
 svgame="${STV_GAME:-$here/games-local/stv}"
 svbios="${STV_BIOS:-$here/roms-local/stvbios.zip}"
 
-emu_exe="$chimera_root/build/Chimera.exe"
+chimera_exe="$chimera_root/build/meson-linux/source/ui/chimera"
 package="$chimera_root/build/Cores/mednafen.chimeraCore"
 runwbx="$root/build/meson-native/run-wbx"
 core="$root/build/meson-guest/core.wbx"
 runner="$chimera_root/build/meson-linux/chimera-run"
-[ -f "$emu_exe" ] || { echo "Chimera's window is not built: $emu_exe" >&2; exit 1; }
+[ -x "$chimera_exe" ] || { echo "Chimera's window is not built: $chimera_exe" >&2; exit 1; }
 [ -f "$package" ] || { echo "the package is not installed: $package (run waterbox/build-package.sh -r $chimera_root)" >&2; exit 1; }
 [ -x "$runwbx" ] && [ -f "$core" ] || { echo "the sandbox build is not there: $runwbx, $core" >&2; exit 1; }
 [ -x "$runner" ] || { echo "Chimera's headless runner is not built: $runner" >&2; exit 1; }
 
 work="$(mktemp -d)"
-xvfb_pid=""
 cleanup() {
-	[ -n "$xvfb_pid" ] && kill "$xvfb_pid" 2>/dev/null
 	if [ -n "$keep" ]; then echo "work folder kept: $work"; else rm -rf "$work"; fi
 }
 trap cleanup EXIT
 
+# Chimera's window, run headless (it needs no display): the cores installed in
+# the checkout, its settings, cache and recovery files the run's own, and
+# nothing carried over from a Chimera installed on this machine
+# the native test runner (run-wbx) needs miniBox's library, which Chimera's build holds
 export LD_LIBRARY_PATH="$chimera_root/build/dll:$chimera_root/build:/usr/lib/x86_64-linux-gnu"
-export MONO_CRASH_NOFILE=1 MONO_WINFORMS_XIM_STYLE=disabled ALSOFT_DRIVERS=null
-# always a display of this test's own: nobody's desktop is drawn on
-command -v Xvfb >/dev/null || { echo "Xvfb not found (apt install xvfb)" >&2; exit 1; }
-for n in 90 91 92 93 94 95 96; do
-	if [ ! -e "/tmp/.X11-unix/X$n" ]; then
-		Xvfb ":$n" -screen 0 1024x768x24 -nolisten tcp > /dev/null 2>&1 & xvfb_pid=$!
-		export DISPLAY=":$n"; break
-	fi
-done
-[ -n "$xvfb_pid" ] || { echo "no free display number for Xvfb" >&2; exit 1; }
-sleep 1
+export ALSOFT_DRIVERS=null CHIMERA_CORES_DIR="$chimera_root/build/Cores" CHIMERA_QT_CACHE="$work/qt-cache" CHIMERA_QT_RECOVERY="$work/qt-recovery" \
+	CHIMERA_QT_HASHES="$work/qt-file-hashes.txt" CHIMERA_QT_CHIMERA_SETTINGS="$work/no-chimera-config.ini"
 
-config="$work/config.ini"
-( cd "$chimera_root" && timeout 120 mono "$emu_exe" --headless "--config=$config" "--lua=$here/exit.lua" ) > "$work/bootstrap.log" 2>&1
-[ -f "$config" ] || { echo "Chimera did not write a configuration:"; tail -5 "$work/bootstrap.log"; exit 1; } >&2
-sed -i 's/"DispMethod": [0-9]/"DispMethod": 1/' "$config"
 
 ok=0
 failed=0
@@ -127,13 +116,13 @@ run_frontend() {
 		echo "shot="
 		echo "domain=$domain"
 	} > "$job"
-	( cd "$chimera_root" && MINIHAWK_JOB="$job" timeout 900 mono "$emu_exe" --headless \
-		"--config=$cfg" "--project=$work/$tag/$tag.chimeraProject" "--lua=$here/frontend-ram.lua" ) >> "$work/$tag.log" 2>&1
+	( cd "$chimera_root" && MINIHAWK_JOB="$job" timeout -s KILL 900 "$chimera_exe" --headless \
+		"--config=$cfg" "--project=$work/$tag/$tag.chimeraProject" "--lua=$here/${lua_script:-frontend-ram.lua}" ) >> "$work/$tag.log" 2>&1
 	[ -f "$work/$tag.meta.txt" ] && grep -q "^status=OK" "$work/$tag.meta.txt"
 }
 value() { sed -n "s/^$2=//p" "$work/$1.meta.txt" 2>/dev/null; }
 
-python3 "$here/settings-config.py" "$config" "$work/config.base.ini" '{}'
+python3 "$here/settings-config.py" "$work/settings.base.json" '{}'
 
 # ---- the Virtual Boy program: needs no file of anyone's
 mkdir -p "$work/vbgame"
@@ -142,7 +131,7 @@ python3 "$here/make-vb-program.py" "$work/vbgame/chimera-test.vb"
 make_project vb $((frames + 100)) virtualboy cart "$work/vbgame/chimera-test.vb"
 "$runner" --project "$work/vb/vb.chimeraProject" "$package" --files "$work/vb" --frames "$frames" \
 	--dump "WRAM=$work/engine.ram.bin" > "$work/engine.log" 2>&1
-if ! run_frontend vb "$work/config.base.ini" "$frames" WRAM; then
+if ! run_frontend vb "$work/settings.base.json" "$frames" WRAM; then
 	report "window:vb" FAIL "Chimera did not finish the run: $(value vb detail) $(tail -2 "$work/vb.log" | tr '\n' ' ' | cut -c1-200)"
 elif [ "$(value vb frames)" != "$frames" ] || [ "$(value vb width)" != 384 ] || [ "$(value vb height)" != 224 ]; then
 	report "window:vb" FAIL "frames $(value vb frames) of $frames, picture $(value vb width)x$(value vb height) and not 384x224"
@@ -152,10 +141,9 @@ else
 	report "window:vb" FAIL "the RAM differs from the headless runner's (or one of the two is missing)"
 fi
 
-python3 "$here/forget-controller.py" "$work/config.base.ini" "$work/config.keys.ini" "Virtual Boy Controller"
 mkdir -p "$work/keys"; cp "$work/vb/chimera-test.vb" "$work/keys/"; sed 's/"mednafen-test-[^"]*"/"mednafen-test-keys"/' "$work/vb/vb.chimeraProject" > "$work/keys/keys.chimeraProject"
-if run_frontend keys "$work/config.keys.ini" 1 ""; then
-	if python3 "$here/check-keybinds.py" "$work/config.keys.ini" "$wb/default_keybinds.json" "Virtual Boy Controller" "P1 A" > "$work/keys.txt" 2>&1; then
+if lua_script=dump-controls.lua run_frontend keys "$work/settings.keys.json" 1 ""; then
+	if python3 "$here/check-keybinds.py" "$work/keys.ram.bin" "$wb/default_keybinds.json" "Virtual Boy Controller" "P1 A" > "$work/keys.txt" 2>&1; then
 		report "window:keys" PASS "$(cat "$work/keys.txt")"
 	else
 		report "window:keys" FAIL "$(head -1 "$work/keys.txt")"
@@ -185,16 +173,16 @@ print('saturn_jp.bin' if 'starts with the Japanese BIOS' in json.loads(t[t.index
 	fwdir="$(mktemp -d)"
 	cp "$bios" "$fwdir/$(basename "$bios")"
 	make_project ssnofw 100 saturn disc "$cue" "$id=$fwdir/$(basename "$bios")"
-	if run_frontend ssnofw "$work/config.base.ini" 1 ""; then
+	if run_frontend ssnofw "$work/settings.base.json" 1 ""; then
 		report "window:refusal" FAIL "the project opened without its BIOS"
 	elif grep -q "$id" "$work/ssnofw.log"; then
 		report "window:refusal" PASS "without the firmware the project is not opened, and $id is named: $(grep -o "[^.]*$id[^.]*" "$work/ssnofw.log" | head -1 | cut -c1-120)"
 	else
 		report "window:refusal" FAIL "refused, but the file is not named: $(tail -2 "$work/ssnofw.log" | tr '\n' ' ' | cut -c1-200)"
 	fi
-	python3 "$here/settings-config.py" "$config" "$work/config.fw.ini" '{}' "{\"$id\": \"$fwdir/$(basename "$bios")\"}"
+	python3 "$here/settings-config.py" "$work/settings.fw.json" '{}' "{\"$id\": \"$fwdir/$(basename "$bios")\"}"
 	make_project ss $((frames + 100)) saturn disc "$cue" "$id=$fwdir/$(basename "$bios")"
-	if ! run_frontend ss "$work/config.fw.ini" "$frames" ""; then
+	if ! run_frontend ss "$work/settings.fw.json" "$frames" ""; then
 		report "window:saturn" FAIL "Chimera did not finish the run: $(value ss detail) $(tail -2 "$work/ss.log" | tr '\n' ' ' | cut -c1-200)"
 	elif [ "$(value ss frames)" = "$frames" ] && [ "${value_w:=$(value ss width)}" -ge 320 ] 2> /dev/null; then
 		report "window:saturn" PASS "a Saturn project opened with $id from Chimera's firmware and ran $frames frames in the window; its picture is $(value ss width)x$(value ss height)"
@@ -210,7 +198,7 @@ window_machine() {
 	local tag="$1" name="$2" machine="$3" slot="$4" gamefile="$5" id="$6" file="$7" w="$8" h="$9" fwdir
 	fwdir="$(mktemp -d)"
 	cp "$file" "$fwdir/$id"
-	python3 "$here/settings-config.py" "$config" "$work/config.$tag.ini" '{}' "{\"$id\": \"$fwdir/$id\"}"
+	python3 "$here/settings-config.py" "$work/config.$tag.ini" '{}' "{\"$id\": \"$fwdir/$id\"}"
 	make_project "$tag" $((frames + 100)) "$machine" "$slot" "$gamefile" "$id=$fwdir/$id"
 	if ! run_frontend "$tag" "$work/config.$tag.ini" "$frames" ""; then
 		report "window:$tag" FAIL "Chimera did not finish the run: $(value "$tag" detail) $(tail -2 "$work/$tag.log" | tr '\n' ' ' | cut -c1-200)"
