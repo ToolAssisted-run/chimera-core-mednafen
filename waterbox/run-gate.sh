@@ -226,10 +226,10 @@ mkdir -p "$work/none"
 printf '{}' > "$work/none/slots"
 printf '{"machine":"saturn"}' > "$work/none/settings"
 nat none none --frames 1
-check "refused:no-game" "a Saturn with no disc is refused, and says so" grep -q "no disc was given" "$work/none.out" "$work/none.err"
+check "refused:no-game" "a Saturn with no disc is refused, and says so" grep -q "error.no_disc" "$work/none.out" "$work/none.err"
 printf '{"machine":"dreamcast"}' > "$work/none/settings"
 nat nomachine none --frames 1
-check "refused:machine" "a machine this core does not have is refused by name" grep -q 'unknown machine "dreamcast"' "$work/nomachine.out" "$work/nomachine.err"
+check "refused:machine" "a machine this core does not have is refused by name" grep -q 'error.bad_machine[^a-z]dreamcast' "$work/nomachine.out" "$work/nomachine.err"
 
 # ------------------------------------------------- the Saturn, with a game
 cue="$(ls "$game"/*.cue 2> /dev/null | head -1)"
@@ -554,11 +554,11 @@ with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z: z.writestr('o
 	folder sv-nogame '{"machine":"stv"}' romset "$work/sv-nogame-src/notagame.zip"; ln -sf "$svbios" "$work/sv-nogame/stvbios.zip"
 	nat sv-nogame sv-nogame --frames 1
 	check "stv:not-a-game" "a zip that holds no ST-V game is refused, and the message says what a ROM set is" \
-		grep -q 'Init failed.*No file of this ROM set' "$work/sv-nogame.out" "$work/sv-nogame.err"
+		grep -q 'Init failed.*error.stv_unknown' "$work/sv-nogame.out" "$work/sv-nogame.err"
 	folder sv-otherbios '{"machine":"stv"}' romset "$svzip"; ln -sf "$work/sv-otherbios.zip" "$work/sv-otherbios/stvbios.zip"
 	nat sv-otherbios sv-otherbios --frames 1
 	check "stv:bios-by-contents" "a BIOS set without the region's BIOS is refused, and the message names the file MAME calls it" \
-		grep -q 'Init failed.*does not hold the BIOS.*epr-20091\.ic8' "$work/sv-otherbios.out" "$work/sv-otherbios.err"
+		grep -q 'Init failed.*error.stv_bios_missing.*epr-20091\.ic8' "$work/sv-otherbios.out" "$work/sv-otherbios.err"
 else
 	for t in runs coin pad sandbox controls lag state-every-frame state-other-box state-rewind region save-data save-backup save-settings firmware-missing not-a-game bios-by-contents; do
 		report "stv:$t" SKIP "no ST-V game with the board's BIOS set (STV_GAME, STV_BIOS)"
@@ -642,7 +642,7 @@ if [ -n "$chimera_root" ] && [ -x "$engine" ] && [ -f "$pkg" ]; then
 		id="$(python3 -c "
 import json, sys
 n = json.load(open(sys.argv[1]))['note']
-print('saturn_jp.bin' if 'starts with the Japanese BIOS' in n else 'saturn_na_eu.bin')" "$work/ss.suggest")"
+print('saturn_jp.bin' if n.startswith('suggest.japan') else 'saturn_na_eu.bin')" "$work/ss.suggest")"
 		[ "$id" = saturn_jp.bin ] && bios="$bios_jp" || bios="$bios_na"
 		python3 "$mk" "$pkg" "$work/ss.chimeraProject" 1500 machine=saturn "panel=$work/ss.out" \
 			"press=P1 Start:900:10" "press=P1 Start:1300:10" "firmware=$id=$bios" -- "disc=$cue" > "$work/ss.project.log" 2>&1

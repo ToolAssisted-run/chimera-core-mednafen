@@ -3,14 +3,14 @@
  "slots": [
   {
    "id": "disc",
-   "title": "Discs",
+   "title": "slot.disc",
    "min": 1,
    "max": 8,
    "formats": [
     "cue",
     "chd"
    ],
-   "help": "The game's CD image: a .cue file with the track files it names beside it, or a .chd file. For a game on several discs, list them all in order. The first is in the drive when the console starts.",
+   "help": "slot.disc.help",
    "exposedWhen": {
     "setting": "machine",
     "in": [
@@ -21,7 +21,7 @@
   },
   {
    "id": "cart",
-   "title": "Cartridge",
+   "title": "setting.ss_cart",
    "min": 1,
    "max": 1,
    "formats": [
@@ -29,7 +29,7 @@
     "vboy",
     "lnx"
    ],
-   "help": "The game's cartridge: a .vb or .vboy file for the Virtual Boy, a .lnx file for the Lynx.",
+   "help": "slot.cart.help",
    "exposedWhen": {
     "setting": "machine",
     "in": [
@@ -40,13 +40,13 @@
   },
   {
    "id": "romset",
-   "title": "ROM set",
+   "title": "slot.romset",
    "min": 1,
    "max": 1,
    "formats": [
     "zip"
    ],
-   "help": "The game's ROM set: a .zip of the ROM files of the game's chips, under the names MAME gives them (for example vfremix.zip). The game is known by what is inside the zip, not by the zip's own name. The zip has to hold every file of the game; a set that leaves out the files its parent set has is not read. The board's BIOS is not part of it: it is asked for on the Firmware page (stvbios.zip).",
+   "help": "slot.romset.help",
    "exposedWhen": {
     "setting": "machine",
     "is": "stv"
@@ -54,7 +54,7 @@
   },
   {
    "id": "savedata",
-   "title": "Save data",
+   "title": "slot.savedata",
    "min": 0,
    "max": 2,
    "formats": [
@@ -64,7 +64,7 @@
     "fxb",
     "seep"
    ],
-   "help": "What the machine's save memory holds at the start, for a project that begins from a saved game. These are the files that Emulator > Export Save Data... writes. Saturn: a .bkr file is the console's own backup memory and a .bcr file the backup memory cartridge's. PC-FX: a .sav file is the console's own backup memory and a .fxb file the memory pack's. Virtual Boy: a .sav file is the cartridge's save memory. ST-V: a .bkr file is the board's backup memory, where a game keeps its scores and its operator settings, and a .seep file the board's own settings memory. Files of the same kinds from Mednafen work as they are. The file is never changed. Leave this empty to start with empty memory.",
+   "help": "slot.savedata.help",
    "exposedWhen": {
     "setting": "machine",
     "in": [
@@ -75,7 +75,7 @@
     ]
    },
    "namePattern": "\\.(bkr|bcr|sav|fxb|seep)$",
-   "nameHelp": "a save file is identified by its extension: .bkr and .bcr for the Saturn, .sav and .fxb for the PC-FX, .sav for the Virtual Boy, .bkr and .seep for the ST-V."
+   "nameHelp": "slot.savedata.name_help"
   }
  ]
 }

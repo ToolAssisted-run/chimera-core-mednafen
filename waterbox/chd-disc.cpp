@@ -35,6 +35,11 @@
 
 #include "chd-disc.h"
 
+/* A text a person reads is a key of languages/en.json, each of its
+ * arguments after a TEXT_ARG (chimera docs/translations.md). TEXT_ARG is a
+ * string of its own so the byte after it is never read as more of its hex. */
+#define TEXT_ARG "\x1f"
+
 using namespace Mednafen;
 
 namespace
@@ -82,7 +87,7 @@ struct chd_image
 			if (err != CHDERR_NONE)
 			{
 				hunkHeld = -1;
-				throw MDFN_Error(0, "the CHD image could not be read at sector %llu: %s", (unsigned long long)number, chd_error_string(err));
+				throw MDFN_Error(0, "error.chd_sector" TEXT_ARG "%llu" TEXT_ARG "%s", (unsigned long long)number, chd_error_string(err));
 			}
 			hunkHeld = want;
 		}
@@ -118,19 +123,19 @@ public:
 			done += take;
 			position += take;
 		}
-		if (done < count && error_on_eos) throw MDFN_Error(0, "a read past the end of a track of the CHD image");
+		if (done < count && error_on_eos) throw MDFN_Error(0, "error.chd_past_end");
 		return done;
 	}
 
-	void write(const void *, uint64) override { throw MDFN_Error(EINVAL, "a CHD image is not written to"); }
-	void truncate(uint64) override { throw MDFN_Error(EINVAL, "a CHD image is not written to"); }
+	void write(const void *, uint64) override { throw MDFN_Error(EINVAL, "error.chd_read_only"); }
+	void truncate(uint64) override { throw MDFN_Error(EINVAL, "error.chd_read_only"); }
 	void flush(void) override { }
 	void close(void) override { }
 
 	void seek(int64 offset, int whence = SEEK_SET) override
 	{
 		int64 const base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? int64(position) : int64(size());
-		if (base + offset < 0) throw MDFN_Error(EINVAL, "a seek before the start of a track of the CHD image");
+		if (base + offset < 0) throw MDFN_Error(EINVAL, "error.chd_before_start");
 		position = uint64(base + offset);
 	}
 	uint64 tell(void) override { return position; }
@@ -173,16 +178,16 @@ public:
 		}
 		// anything else is not there: the cue reader looks for a file of
 		// subchannel patches beside the cue sheet, and goes on without it
-		if (throw_on_noent) throw MDFN_Error(ENOENT, "the CHD image has no file \"%s\"", path.c_str());
+		if (throw_on_noent) throw MDFN_Error(ENOENT, "error.chd_no_file" TEXT_ARG "%s", path.c_str());
 		return nullptr;
 	}
 
-	int mkdir(const std::string &, const bool = false, const bool = true) override { throw MDFN_Error(EINVAL, "a CHD image is not written to"); }
-	bool unlink(const std::string &, const bool = false, const CanaryType = CanaryType::unlink) override { throw MDFN_Error(EINVAL, "a CHD image is not written to"); }
-	void rename(const std::string &, const std::string &, const CanaryType = CanaryType::rename) override { throw MDFN_Error(EINVAL, "a CHD image is not written to"); }
+	int mkdir(const std::string &, const bool = false, const bool = true) override { throw MDFN_Error(EINVAL, "error.chd_read_only"); }
+	bool unlink(const std::string &, const bool = false, const CanaryType = CanaryType::unlink) override { throw MDFN_Error(EINVAL, "error.chd_read_only"); }
+	void rename(const std::string &, const std::string &, const CanaryType = CanaryType::rename) override { throw MDFN_Error(EINVAL, "error.chd_read_only"); }
 	bool finfo(const std::string &path, FileInfo *, const bool throw_on_noent = true) override
 	{
-		if (throw_on_noent) throw MDFN_Error(ENOENT, "the CHD image has no file \"%s\"", path.c_str());
+		if (throw_on_noent) throw MDFN_Error(ENOENT, "error.chd_no_file" TEXT_ARG "%s", path.c_str());
 		return false;
 	}
 	void readdirentries(const std::string &, std::function<bool(const std::string &)>) override { }
@@ -250,13 +255,13 @@ Mednafen::CDAccess *open_chd_disc(const std::string &path)
 	std::unique_ptr<chd_image> image(new chd_image);
 	chd_error const err = chd_open(path.c_str(), CHD_OPEN_READ, nullptr, &image->file);
 	if (err != CHDERR_NONE)
-		throw MDFN_Error(0, "\"%s\" could not be opened as a CHD image: %s", path.c_str(), chd_error_string(err));
+		throw MDFN_Error(0, "error.chd_not_opened" TEXT_ARG "%s" TEXT_ARG "%s", path.c_str(), chd_error_string(err));
 	const chd_header *header = chd_get_header(image->file);
 	image->hunkBytes = header->hunkbytes;
 	image->unitBytes = header->unitbytes;
 	// a CD's CHD is made of sectors of 2352 bytes with 96 of subchannel
 	if (image->unitBytes != CD_FRAME_SIZE || image->hunkBytes == 0 || image->hunkBytes % image->unitBytes)
-		throw MDFN_Error(0, "\"%s\" is a CHD image, but not of a CD", path.c_str());
+		throw MDFN_Error(0, "error.chd_not_cd" TEXT_ARG "%s", path.c_str());
 	image->hunk.resize(image->hunkBytes);
 
 	static const struct
@@ -280,13 +285,13 @@ Mednafen::CDAccess *open_chd_disc(const std::string &path)
 		if (chd_get_metadata(image->file, CDROM_TRACK_METADATA2_TAG, index, text, sizeof text - 1, nullptr, nullptr, nullptr) == CHDERR_NONE)
 		{
 			if (sscanf(text, CDROM_TRACK_METADATA2_FORMAT, &number, type, subtype, &frames, &pregap, pgtype, pgsub, &postgap) != 8)
-				throw MDFN_Error(0, "\"%s\": a track record of the CHD image is not readable", path.c_str());
+				throw MDFN_Error(0, "error.chd_track_unreadable" TEXT_ARG "%s", path.c_str());
 		}
 		else if (chd_get_metadata(image->file, CDROM_TRACK_METADATA_TAG, index, text, sizeof text - 1, nullptr, nullptr, nullptr) == CHDERR_NONE)
 		{
 			// the older record, which has no gaps
 			if (sscanf(text, CDROM_TRACK_METADATA_FORMAT, &number, type, subtype, &frames) != 4)
-				throw MDFN_Error(0, "\"%s\": a track record of the CHD image is not readable", path.c_str());
+				throw MDFN_Error(0, "error.chd_track_unreadable" TEXT_ARG "%s", path.c_str());
 		}
 		else
 			break;
@@ -306,9 +311,9 @@ Mednafen::CDAccess *open_chd_disc(const std::string &path)
 				track.audio = kind.audio;
 			}
 		if (!track.sectorBytes)
-			throw MDFN_Error(0, "\"%s\": track %d of the CHD image is of a kind (%s) this core does not read", path.c_str(), number, type);
+			throw MDFN_Error(0, "error.chd_track_kind" TEXT_ARG "%s" TEXT_ARG "%d" TEXT_ARG "%s", path.c_str(), number, type);
 		if (number != int(index) + 1 || frames <= 0 || pregap < 0 || postgap < 0 || (track.pregapStored && pregap > frames))
-			throw MDFN_Error(0, "\"%s\": a track record of the CHD image makes no sense", path.c_str());
+			throw MDFN_Error(0, "error.chd_track_nonsense" TEXT_ARG "%s", path.c_str());
 		// each track begins on a block of four sectors
 		next += (uint64_t(frames) + CD_TRACK_PADDING - 1) / CD_TRACK_PADDING * CD_TRACK_PADDING;
 		image->tracks.push_back(track);
@@ -318,10 +323,10 @@ Mednafen::CDAccess *open_chd_disc(const std::string &path)
 		char text[256];
 		if (chd_get_metadata(image->file, GDROM_TRACK_METADATA_TAG, 0, text, sizeof text - 1, nullptr, nullptr, nullptr) == CHDERR_NONE
 			|| chd_get_metadata(image->file, GDROM_OLD_METADATA_TAG, 0, text, sizeof text - 1, nullptr, nullptr, nullptr) == CHDERR_NONE)
-			throw MDFN_Error(0, "\"%s\" is a CHD image of a GD-ROM, which is not a CD", path.c_str());
-		throw MDFN_Error(0, "\"%s\" is a CHD image with no CD tracks in it", path.c_str());
+			throw MDFN_Error(0, "error.chd_gdrom" TEXT_ARG "%s", path.c_str());
+		throw MDFN_Error(0, "error.chd_no_tracks" TEXT_ARG "%s", path.c_str());
 	}
 	if (next * image->unitBytes > header->logicalbytes)
-		throw MDFN_Error(0, "\"%s\": the CHD image is shorter than its tracks", path.c_str());
+		throw MDFN_Error(0, "error.chd_short" TEXT_ARG "%s", path.c_str());
 	return new chd_disc(std::move(image));
 }

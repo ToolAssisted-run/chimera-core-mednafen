@@ -165,7 +165,7 @@ else
 	id="$("$runwbx" "$core" "$probe" --suggest 2> /dev/null | python3 -c "
 import json, sys
 t = sys.stdin.read()
-print('saturn_jp.bin' if 'starts with the Japanese BIOS' in json.loads(t[t.index('{'):])['note'] else 'saturn_na_eu.bin')")"
+print('saturn_jp.bin' if json.loads(t[t.index('{'):])['note'].startswith('suggest.japan') else 'saturn_na_eu.bin')")"
 	rm -rf "$probe"
 	[ "$id" = saturn_jp.bin ] && bios="$bios_jp" || bios="$bios_na"
 	# the BIOS lives in a folder of its own, which Chimera is told of only by

@@ -38,23 +38,23 @@
     "P1 L": "Q, J1 B7, X1 LeftTrigger", "P1 R": "W, J1 B8, X1 RightTrigger", "P1 Start": "Enter, J1 B10, X1 Start"
    },
    "taps": {"rule": "sequential", "settings": ["ss.input.sport1.multitap", "ss.input.sport2.multitap"], "portsOnTap": 6},
-   "portSetting": {"display": "Port %d", "description": "What is plugged into port %d. Only port 1 starts with a pad; give the other players theirs here. Ports 1 and 2 are the console's own when no multitap is plugged in. With a multitap in the first socket, ports 1 to 6 are on it and the next port is the second socket. 'none' leaves the port empty. It is part of the machine, so a movie needs the same value."},
+   "portSetting": {"display": "setting.port", "description": "setting.port.saturn.about"},
    "settings": [
-    {"name": "ss.region_autodetect", "display": "Region From The Game", "description": "Takes the console's region from the game's disc. Turn it off to use the region set below, for a disc that names several regions or the wrong one. It is part of the machine, so a movie needs the same value."},
-    {"name": "ss.region_default", "display": "Region", "description": "The console's region when it is not taken from the game: jp is Japan, na North America, eu Europe, kr Korea, tw Taiwan, as Asia, br Brazil, la Latin America. Japan and Taiwan use the Japanese BIOS file and the others the North American and European one. It is part of the machine, so a movie needs the same value."},
-    {"name": "ss.cart", "display": "Cartridge", "description": "What is in the cartridge slot. 'auto' picks what the game is known to need and the backup memory cartridge otherwise. 'backup' is a memory cartridge for saves, 'extram1' and 'extram4' are the 1 MB and 4 MB RAM cartridges some games require, 'cs1ram16' is a 16 MB RAM cartridge for homebrew, and 'ar4mp' is the Action Replay 4M Plus, which needs its own ROM file. It is part of the machine, so a movie needs the same value."},
-    {"name": "ss.cart.auto_default", "display": "Cartridge When The Game Needs None", "description": "The cartridge that 'auto' plugs in for a game that is not known to need one. It is part of the machine, so a movie needs the same value."},
-    {"name": "ss.input.sport1.multitap", "display": "Multitap In Socket 1", "description": "Plugs a six-player multitap into the console's first controller socket. It is part of the machine, so a movie needs the same value."},
-    {"name": "ss.input.sport2.multitap", "display": "Multitap In Socket 2", "description": "Plugs a six-player multitap into the console's second controller socket. It is part of the machine, so a movie needs the same value."},
-    {"name": "ss.smpc.autortc", "display": "Set The Clock At Start", "description": "Sets the console's clock and language when the machine starts, so the BIOS does not stop to ask for them. The time is the Starting Clock setting. It is part of the machine, so a movie needs the same value."},
-    {"name": "ss.smpc.autortc.lang", "display": "BIOS Language", "description": "The language the console is set to when the clock is set at start. Games read it to choose their own language. It is part of the machine, so a movie needs the same value.", "options": ["english", "german", "french", "spanish", "italian", "japanese"]},
-    {"name": "ss.h_overscan", "display": "Show The Side Borders", "description": "Shows the strips at the left and right edges of the picture that a television hid. It changes the picture only."},
-    {"name": "ss.h_blend", "display": "Blend Neighbouring Pixels", "description": "Blurs each line a little from left to right, as a television did. Some games rely on it to mix colours. It changes the picture only."},
-    {"name": "ss.correct_aspect", "display": "Television Shape", "description": "Shows the picture in the shape it had on a television. Turn it off to show the pixels as squares. It changes the picture only."},
-    {"name": "ss.slstart", "display": "First Line (NTSC)", "description": "The first line of the picture that is shown on an NTSC console. It changes the picture only."},
-    {"name": "ss.slend", "display": "Last Line (NTSC)", "description": "The last line of the picture that is shown on an NTSC console. It changes the picture only."},
-    {"name": "ss.slstartp", "display": "First Line (PAL)", "description": "The first line of the picture that is shown on a PAL console. It changes the picture only."},
-    {"name": "ss.slendp", "display": "Last Line (PAL)", "description": "The last line of the picture that is shown on a PAL console. It changes the picture only."}
+    {"name": "ss.region_autodetect", "display": "setting.ss_region_autodetect", "description": "setting.ss_region_autodetect.about"},
+    {"name": "ss.region_default", "display": "common.region", "description": "setting.ss_region_default.about"},
+    {"name": "ss.cart", "display": "setting.ss_cart", "description": "setting.ss_cart.about"},
+    {"name": "ss.cart.auto_default", "display": "setting.ss_cart_auto_default", "description": "setting.ss_cart_auto_default.about"},
+    {"name": "ss.input.sport1.multitap", "display": "common.multitap_in_socket_1", "description": "setting.ss_input_sport1_multitap.about"},
+    {"name": "ss.input.sport2.multitap", "display": "common.multitap_in_socket_2", "description": "setting.ss_input_sport2_multitap.about"},
+    {"name": "ss.smpc.autortc", "display": "setting.ss_smpc_autortc", "description": "setting.ss_smpc_autortc.about"},
+    {"name": "ss.smpc.autortc.lang", "display": "setting.ss_smpc_autortc_lang", "description": "setting.ss_smpc_autortc_lang.about", "options": ["english", "german", "french", "spanish", "italian", "japanese"]},
+    {"name": "ss.h_overscan", "display": "setting.ss_h_overscan", "description": "setting.ss_h_overscan.about"},
+    {"name": "ss.h_blend", "display": "setting.ss_h_blend", "description": "setting.ss_h_blend.about"},
+    {"name": "ss.correct_aspect", "display": "setting.ss_correct_aspect", "description": "setting.ss_correct_aspect.about"},
+    {"name": "ss.slstart", "display": "setting.ss_slstart", "description": "setting.ss_slstart.about"},
+    {"name": "ss.slend", "display": "setting.ss_slend", "description": "setting.ss_slend.about"},
+    {"name": "ss.slstartp", "display": "setting.ss_slstartp", "description": "setting.ss_slstartp.about"},
+    {"name": "ss.slendp", "display": "setting.ss_slendp", "description": "setting.ss_slendp.about"}
    ]
   },
   {
@@ -84,14 +84,14 @@
     "P1 Start": "Enter, J1 B10, X1 Start", "P1 Select": "Space, J1 B9, X1 Back"
    },
    "settings": [
-    {"name": "vb.cpu_emulation", "display": "Processor Emulation", "description": "How closely the processor's timing is followed. 'accurate' counts every step and a few games need it. 'fast' is Mednafen's default. It is part of the machine, so a movie needs the same value."},
-    {"name": "vb.input.instant_read_hack", "display": "Read The Pad At Once", "description": "Gives the game the pad's buttons at the moment it asks for them and not after the console's real delay of a frame. It is Mednafen's default. It is part of the machine, so a movie needs the same value."},
-    {"name": "vb.instant_display_hack", "display": "Show The Frame At Once", "description": "Shows a frame as soon as it is drawn and not when the console's displays would light it. It changes which frame a picture belongs to, so a movie needs the same value."},
-    {"name": "vb.3dmode", "display": "How The Two Eyes Are Shown", "description": "The console shows a picture to each eye. 'anaglyph' puts both on one picture in two colours for coloured glasses, 'sidebyside' puts them next to each other, 'cscope' is the layout of a CyberScope viewer, 'vli' and 'hli' weave them line by line, and 'left' and 'right' show one eye only. It changes the picture only."},
-    {"name": "vb.anaglyph.preset", "display": "Glasses Colours", "description": "The two colours of the 'anaglyph' picture, named after the glasses they suit. It changes the picture only.", "options": ["red_blue", "red_cyan", "red_electriccyan", "red_green", "green_magenta", "yellow_blue"]},
-    {"name": "vb.3dreverse", "display": "Swap The Eyes", "description": "Gives the left eye's picture to the right eye and the right eye's to the left. It changes the picture only."},
-    {"name": "vb.disable_parallax", "display": "Flat Picture", "description": "Draws both eyes' pictures the same, with no depth. It changes the picture only."},
-    {"name": "vb.sidebyside.separation", "display": "Gap Between The Eyes", "description": "The number of empty pixels between the two pictures of the 'sidebyside' layout. It changes the picture only."}
+    {"name": "vb.cpu_emulation", "display": "common.processor_emulation", "description": "setting.vb_cpu_emulation.about"},
+    {"name": "vb.input.instant_read_hack", "display": "setting.vb_input_instant_read_hack", "description": "setting.vb_input_instant_read_hack.about"},
+    {"name": "vb.instant_display_hack", "display": "setting.vb_instant_display_hack", "description": "setting.vb_instant_display_hack.about"},
+    {"name": "vb.3dmode", "display": "setting.vb_3dmode", "description": "setting.vb_3dmode.about"},
+    {"name": "vb.anaglyph.preset", "display": "setting.vb_anaglyph_preset", "description": "setting.vb_anaglyph_preset.about", "options": ["red_blue", "red_cyan", "red_electriccyan", "red_green", "green_magenta", "yellow_blue"]},
+    {"name": "vb.3dreverse", "display": "setting.vb_3dreverse", "description": "setting.vb_3dreverse.about"},
+    {"name": "vb.disable_parallax", "display": "setting.vb_disable_parallax", "description": "setting.vb_disable_parallax.about"},
+    {"name": "vb.sidebyside.separation", "display": "setting.vb_sidebyside_separation", "description": "setting.vb_sidebyside_separation.about"}
    ]
   },
   {
@@ -117,19 +117,19 @@
     "P1 Run": "Enter, J1 B10, X1 Start", "P1 Select": "Space, J1 B9, X1 Back"
    },
    "taps": {"rule": "pcfx", "settings": ["pcfx.input.port1.multitap", "pcfx.input.port2.multitap"]},
-   "portSetting": {"display": "Port %d", "description": "What is plugged into port %d. Only port 1 starts with a pad; give the other players theirs here. Ports 1 and 2 are the console's own. Ports 3, 4 and 5 are the extra ones of a multitap in the first socket, and ports 6, 7 and 8 those of one in the second. 'none' leaves the port empty. It is part of the machine, so a movie needs the same value."},
+   "portSetting": {"display": "setting.port", "description": "setting.port.pcfx.about"},
    "settings": [
-    {"name": "pcfx.input.port1.multitap", "display": "Multitap In Socket 1", "description": "Plugs a multitap into the console's first controller socket. It is part of the machine, so a movie needs the same value."},
-    {"name": "pcfx.input.port2.multitap", "display": "Multitap In Socket 2", "description": "Plugs a multitap into the console's second controller socket. It is part of the machine, so a movie needs the same value."},
-    {"name": "pcfx.cpu_emulation", "display": "Processor Emulation", "description": "How closely the processor's timing is followed. 'accurate' counts every step, 'fast' does not, and 'auto' uses 'accurate' for the games known to need it. It is part of the machine, so a movie needs the same value."},
-    {"name": "pcfx.cdspeed", "display": "Disc Drive Speed", "description": "How many times faster than the real drive the disc is read. 2 is the console's own speed. It is part of the machine, so a movie needs the same value."},
-    {"name": "pcfx.adpcm.emulate_buggy_codec", "display": "Sound Of The Faulty Encoder", "description": "Plays compressed sound the way the faulty tool some games were made with expected it. Mednafen says it is not accurate, only better for those games. It changes the sound, so a movie's recording needs the same value."},
-    {"name": "pcfx.adpcm.suppress_channel_reset_clicks", "display": "Hide Sound Clicks", "description": "Removes the clicks heard when a game resets a sound channel. It changes the sound, so a movie's recording needs the same value."},
-    {"name": "pcfx.nospritelimit", "display": "No Sprite Limit", "description": "Draws more than the console's 16 sprites on a line. It removes flicker and can show things a game meant to hide. It changes the picture only."},
-    {"name": "pcfx.high_dotclock_width", "display": "Width Of The Wide Mode", "description": "How many pixels wide the picture is handed out in the console's highest horizontal resolution: 341 is the real number of pixels, 256 loses detail, 1024 keeps every mode the same width. It changes the picture only."},
-    {"name": "pcfx.rainbow.chromaip", "display": "Smooth Video Colours", "description": "Smooths the colour of the console's video playback between pixels. It changes the picture only."},
-    {"name": "pcfx.slstart", "display": "First Line", "description": "The first line of the picture that is shown. It changes the picture only."},
-    {"name": "pcfx.slend", "display": "Last Line", "description": "The last line of the picture that is shown. It changes the picture only."}
+    {"name": "pcfx.input.port1.multitap", "display": "common.multitap_in_socket_1", "description": "setting.pcfx_input_port1_multitap.about"},
+    {"name": "pcfx.input.port2.multitap", "display": "common.multitap_in_socket_2", "description": "setting.pcfx_input_port2_multitap.about"},
+    {"name": "pcfx.cpu_emulation", "display": "common.processor_emulation", "description": "setting.pcfx_cpu_emulation.about"},
+    {"name": "pcfx.cdspeed", "display": "setting.pcfx_cdspeed", "description": "setting.pcfx_cdspeed.about"},
+    {"name": "pcfx.adpcm.emulate_buggy_codec", "display": "setting.pcfx_adpcm_emulate_buggy_codec", "description": "setting.pcfx_adpcm_emulate_buggy_codec.about"},
+    {"name": "pcfx.adpcm.suppress_channel_reset_clicks", "display": "setting.pcfx_adpcm_suppress_channel_reset_clicks", "description": "setting.pcfx_adpcm_suppress_channel_reset_clicks.about"},
+    {"name": "pcfx.nospritelimit", "display": "setting.pcfx_nospritelimit", "description": "setting.pcfx_nospritelimit.about"},
+    {"name": "pcfx.high_dotclock_width", "display": "setting.pcfx_high_dotclock_width", "description": "setting.pcfx_high_dotclock_width.about"},
+    {"name": "pcfx.rainbow.chromaip", "display": "setting.pcfx_rainbow_chromaip", "description": "setting.pcfx_rainbow_chromaip.about"},
+    {"name": "pcfx.slstart", "display": "setting.pcfx_slstart", "description": "setting.pcfx_slstart.about"},
+    {"name": "pcfx.slend", "display": "setting.pcfx_slend", "description": "setting.pcfx_slend.about"}
    ]
   },
   {
@@ -150,8 +150,8 @@
     "P1 Pause": "Enter, J1 B10, X1 Start"
    },
    "settings": [
-    {"name": "lynx.rotateinput", "display": "Turn The Pad With The Screen", "description": "Some games are played with the console held upright. This turns the direction pad with the picture, so Up is still up. It is part of the machine, so a movie needs the same value."},
-    {"name": "lynx.lowpass", "display": "Soften The Sound", "description": "Passes the sound through a filter like the console's small speaker. It changes the sound, so a movie's recording needs the same value."}
+    {"name": "lynx.rotateinput", "display": "setting.lynx_rotateinput", "description": "setting.lynx_rotateinput.about"},
+    {"name": "lynx.lowpass", "display": "setting.lynx_lowpass", "description": "setting.lynx_lowpass.about"}
    ]
   },
   {
@@ -188,18 +188,18 @@
     "P1 Start": "Enter, J1 B10, X1 Start", "Coin": "Space, J1 B9, X1 Back"
    },
    "ownSettings": [
-    {"name": "stv.region", "display": "Region", "description": "The region of the board, which decides the BIOS it starts from and, in many games, the language. 'game' is the region Mednafen's list gives the game. 'jp' is Japan, 'na' North America and 'eu' Europe; not every game runs in every region. It is part of the machine, so a movie needs the same value.", "type": "enum", "options": ["game", "jp", "na", "eu"], "default": "game"}
+    {"name": "stv.region", "display": "common.region", "description": "setting.stv_region.about", "type": "enum", "options": ["game", "jp", "na", "eu"], "default": "game"}
    ],
    "shareSettings": ["ss.h_overscan", "ss.h_blend", "ss.correct_aspect", "ss.slstart", "ss.slend"]
   }
  ],
  "firmware": [
-  {"id": "pcfx.rom", "display": "PC-FX BIOS", "description": "The PC-FX's BIOS (1 MB). The console starts from it. It is usually named pcfx.rom; versions 1.00 and 1.01 both work. It is NEC's and you have to supply it.", "size": 1048576, "name": "pcfx.rom", "requiredWhen": {"setting": "machine", "in": ["pcfx"]}},
-  {"id": "lynxboot.img", "display": "Lynx boot ROM", "description": "The Lynx's boot ROM (512 bytes). The console starts from it and it checks the cartridge. It is Atari's and you have to supply it.", "size": 512, "sha1": "E4ED47FAE31693E016B081C6BDA48DA5B70D7CCB", "name": "lynxboot.img", "requiredWhen": {"setting": "machine", "in": ["lynx"]}},
-  {"id": "stvbios.zip", "display": "ST-V BIOS set", "description": "The BIOS of the ST-V board, as the set of them MAME uses: stvbios.zip, a zip of the BIOS of every region (512 KB each). The core takes out the one for the game's region, by its contents and not by its name, so a set from any version of MAME works. It is Sega's and you have to supply it.", "name": "stvbios.zip", "requiredWhen": {"setting": "machine", "in": ["stv"]}},
-  {"id": "satar4mp.bin", "display": "Action Replay 4M Plus ROM", "description": "The ROM of the Action Replay 4M Plus cartridge. It is needed when the Cartridge setting is 'ar4mp'. You have to supply it.", "name": "satar4mp.bin", "requiredWhen": {"all": [{"setting": "machine", "in": ["saturn"]}, {"setting": "ss.cart", "is": "ar4mp"}]}}
+  {"id": "pcfx.rom", "display": "firmware.pcfx_rom", "description": "firmware.pcfx_rom.about", "size": 1048576, "name": "pcfx.rom", "requiredWhen": {"setting": "machine", "in": ["pcfx"]}},
+  {"id": "lynxboot.img", "display": "firmware.lynxboot_img", "description": "firmware.lynxboot_img.about", "size": 512, "sha1": "E4ED47FAE31693E016B081C6BDA48DA5B70D7CCB", "name": "lynxboot.img", "requiredWhen": {"setting": "machine", "in": ["lynx"]}},
+  {"id": "stvbios.zip", "display": "firmware.stvbios_zip", "description": "firmware.stvbios_zip.about", "name": "stvbios.zip", "requiredWhen": {"setting": "machine", "in": ["stv"]}},
+  {"id": "satar4mp.bin", "display": "firmware.satar4mp_bin", "description": "firmware.satar4mp_bin.about", "name": "satar4mp.bin", "requiredWhen": {"all": [{"setting": "machine", "in": ["saturn"]}, {"setting": "ss.cart", "is": "ar4mp"}]}}
  ],
  "commonSettings": [
-  {"name": "initialTime", "display": "Starting Clock", "description": "What the machine's clock shows when it is switched on, in seconds since 1970 (Unix time). The Saturn's clock and the ST-V's are set from it. This is a setting, and not your computer's clock, so that a movie plays back the same on any day.", "type": "int", "min": 0, "max": 2147483647, "default": 946684800, "when": ["saturn", "stv"]}
+  {"name": "initialTime", "display": "setting.initialtime", "description": "setting.initialtime.about", "type": "int", "min": 0, "max": 2147483647, "default": 946684800, "when": ["saturn", "stv"]}
  ]
 }

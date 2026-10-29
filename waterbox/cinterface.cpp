@@ -54,6 +54,13 @@ void SS_ChimeraDiscFacts(std::vector<Mednafen::CDInterface *> *discs, int *japan
 namespace
 {
 
+/* A text a person reads is a key of languages/en.json, each of its
+ * arguments after a TEXT_ARG, and a text of several puts a TEXT_LINE before
+ * each (chimera docs/translations.md). Each is a string of its own so the
+ * byte after it is never read as more of its hex. */
+#define TEXT_ARG "\x1f"
+#define TEXT_LINE "\x1d"
+
 char g_loadError[2048];
 std::string g_machine;
 MDFNGI *g_system;                 // this run's copy of the system's description
@@ -462,7 +469,7 @@ void build_panel()
 		// its input means panel.inc is stale
 		if (size_t(row.input) >= device->IDII.size() || !device->IDII[row.input].SettingName
 			|| strcmp(device->IDII[row.input].SettingName, row.sname))
-			throw MDFN_Error(0, "the control table (panel.inc) is not this Mednafen's: %s of %s", row.sname, row.device);
+			throw MDFN_Error(0, "error.panel_stale" TEXT_ARG "%s" TEXT_ARG "%s", row.sname, row.device);
 		c.live = &row;
 		c.input = &device->IDII[row.input];
 	}
@@ -590,11 +597,11 @@ void load_rom_set(std::string const &path)
 		catch (MDFN_Error const &e)
 		{
 			if (e.GetErrno() != ENOENT) throw;
-			throw MDFN_Error(0, "%s\nThe ROM set has to hold every file of the game, under the names MAME gives them. A set that leaves out the files its parent set has (a \"split\" clone) is not read.", e.what());
+			throw MDFN_Error(0, "%s" TEXT_LINE "error.stv_split", e.what());
 		}
 		return;
 	}
-	throw MDFN_Error(0, "No file of this ROM set is the start of an ST-V game that Mednafen knows. The files have to carry the names MAME gives them (for example mpr17945.1).");
+	throw MDFN_Error(0, "error.stv_unknown");
 }
 
 void start_frame_buffers()
@@ -803,7 +810,7 @@ bool choose_machine()
 		if (g_machine == entry.machine) g_entry = &entry;
 	if (!g_entry)
 	{
-		snprintf(g_loadError, sizeof g_loadError, "unknown machine \"%s\"", g_machine.c_str());
+		snprintf(g_loadError, sizeof g_loadError, "error.bad_machine" TEXT_ARG "%s", g_machine.c_str());
 		return false;
 	}
 	if (!g_system)
@@ -870,35 +877,30 @@ std::string saturn_firmware(std::string &note)
 	{
 		whenJapan = "{\"any\":[" + fromDisc + "," + setJapan + "]}";
 		whenOther = "{\"all\":[" + notFromDisc + "," + setOther + "]}";
-		note = "This disc is for a Japanese or Taiwanese console, which starts with the Japanese BIOS.";
+		note = "suggest.japan";
 	}
 	else if (japan == 0)
 	{
 		whenJapan = "{\"all\":[" + notFromDisc + "," + setJapan + "]}";
 		whenOther = "{\"any\":[" + fromDisc + "," + setOther + "]}";
-		note = "This disc is for a console outside Japan and Taiwan, which starts with the North American and European BIOS.";
+		note = "suggest.not_japan";
 	}
 	else
 	{
 		whenJapan = setJapan;
 		whenOther = setOther;
-		note = "This disc does not say which region it is for, so the Region setting decides which BIOS the console starts with.";
+		note = "suggest.no_region";
 	}
 	std::string out = "["
-		+ firmware_entry("saturn_jp.bin", "Saturn BIOS (Japan)",
-			"The BIOS of a Japanese Saturn (512 KB). The console starts from it. Version 1.01 is usually named sega_101.bin; versions 1.00 and 1.003 work as well. It is Sega's and you have to supply it.",
-			"sega_101.bin", whenJapan)
-		+ "," + firmware_entry("saturn_na_eu.bin", "Saturn BIOS (North America and Europe)",
-			"The BIOS of a North American or European Saturn (512 KB). The console starts from it. It is usually named mpr-17933.bin. It is Sega's and you have to supply it.",
-			"mpr-17933.bin", whenOther);
+		+ firmware_entry("saturn_jp.bin", "firmware.saturn_jp", "firmware.saturn_jp.about", "sega_101.bin", whenJapan)
+		+ "," + firmware_entry("saturn_na_eu.bin", "firmware.saturn_na_eu", "firmware.saturn_na_eu.about", "mpr-17933.bin", whenOther);
 	if (cartRom)
 	{
 		// the game is known to need the ROM cartridge it was sold with
 		std::string const file = MDFN_GetSettingS(cartRom);
-		out += "," + firmware_entry(file.c_str(), "Game cartridge ROM",
-			"This game was sold with a ROM cartridge and reads part of itself from it. The file is the cartridge's ROM, under the name MAME gives it. It is needed while the Cartridge setting is 'auto'.",
-			file.c_str(), "{\"setting\":\"ss.cart\",\"is\":\"auto\"}");
-		note += " The game needs its ROM cartridge (" + file + ").";
+		out += "," + firmware_entry(file.c_str(), "firmware.game_cart", "firmware.game_cart.about", file.c_str(),
+			"{\"setting\":\"ss.cart\",\"is\":\"auto\"}");
+		note += TEXT_LINE "suggest.needs_cart" TEXT_ARG + file;
 	}
 	return out + "]";
 }
@@ -971,7 +973,7 @@ bool MDFN_ChimeraFirmware(const char *setting, uint8 *dest, uint32 bytes)
 		}
 		catch (MDFN_Error const &e)
 		{
-			throw MDFN_Error(0, "The ST-V's BIOS set (stvbios.zip) was not given: %s", e.what());
+			throw MDFN_Error(0, "error.no_stv_bios" TEXT_ARG "%s", e.what());
 		}
 		ZIPReader zip(std::move(set));
 		std::vector<uint8> rom(bytes);
@@ -985,7 +987,7 @@ bool MDFN_ChimeraFirmware(const char *setting, uint8 *dest, uint32 bytes)
 				memcpy(dest, rom.data(), bytes);
 				return true;
 			}
-		throw MDFN_Error(0, "The BIOS set (stvbios.zip) does not hold the BIOS of a %s ST-V, which MAME names %s. The game's region, or the Region setting, asks for it.", bios.region, bios.file);
+		throw MDFN_Error(0, "error.stv_bios_missing" TEXT_ARG "%s" TEXT_ARG "%s", bios.region, bios.file);
 	}
 	return false;
 }
@@ -1013,7 +1015,7 @@ ECL_EXPORT const char *SuggestSettings(void)
 		else if (g_machine == "saturn")
 		{
 			std::vector<std::string> const files = game_files();
-			if (files.empty()) note = "No disc was given.";
+			if (files.empty()) note = "suggest.no_disc";
 			else
 			{
 				open_discs(files);
@@ -1038,7 +1040,7 @@ ECL_EXPORT int Init(void)
 		std::vector<std::string> const files = game_files();
 		if (files.empty())
 		{
-			snprintf(g_loadError, sizeof g_loadError, "no %s was given", g_entry->disc ? "disc" : "game");
+			snprintf(g_loadError, sizeof g_loadError, "%s", g_entry->disc ? "error.no_disc" : "error.no_file");
 			return 0;
 		}
 		if (g_entry->disc) load_discs(files);

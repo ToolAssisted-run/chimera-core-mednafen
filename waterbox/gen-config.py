@@ -323,8 +323,9 @@ def main():
         fail("machines.json has %s and the core has %s" % (machine_names, sorted(systems)))
 
     settings = [{
-        "name": "machine", "display": "Machine",
-        "description": "Which console this project is for. Everything else depends on it, so changing it restarts the core.",
+        # keys of languages/en.json, as machines.json's texts are
+        "name": "machine", "display": "setting.machine",
+        "description": "setting.machine.about",
         "type": "enum", "options": machine_names, "default": machine_names[0],
     }]
     machines, binds, system_names = [], {}, {}
@@ -375,8 +376,9 @@ def main():
             rows.append("PANEL_PORT(%s, %d, %s)" % (cstr(m["machine"]), system["ports"].index(port), cstr(default)))
             settings.append({
                 "name": "%s.input.%s" % (system["shortname"], port["short"]),
-                "display": m["portSetting"]["display"] % player,
-                "description": m["portSetting"]["description"] % player,
+                # keys of languages/en.json, the player their argument (chimera docs/translations.md)
+                "display": m["portSetting"]["display"] + "\x1f" + str(player),
+                "description": m["portSetting"]["description"] + "\x1f" + str(player),
                 "type": "enum", "options": devices, "default": default, "when": [m["machine"]],
             })
         for decl in m.get("settings", []):
