@@ -21,7 +21,7 @@
 		"error.no_disc": "A projektben nincs lemez.",
 		"error.no_file": "A projektben nincs játékfájl.",
 		"error.no_stv_bios": "Az ST-V BIOS-készlete (stvbios.zip) nincs megadva: %1",
-		"error.panel_stale": "A vezérlőtábla (panel.inc) nem ennek a Mednafennek a táblája: %1 a(z) %2 közül.",
+		"error.panel_stale": "A vezérlőtábla (panel.inc) nem ennek a Mednafen emulátornak a táblája: %1 a(z) %2 közül.",
 		"error.stv_bios_missing": "A BIOS-készlet (stvbios.zip) nem tartalmazza egy %1 ST-V BIOS-át, amelyet a MAME %2 néven ismer. A játék régiója vagy a Régió beállítás kéri.",
 		"error.stv_split": "A romkészletnek tartalmaznia kell a játék minden fájlját, a MAME által adott neveken. Az a készlet, amely kihagyja azokat a fájlokat, amelyeket a szülőkészlete tartalmaz (egy „split” klón), nem olvasható.",
 		"error.stv_unknown": "A romkészlet egyik fájlja sem egy olyan ST-V játék kezdete, amelyet a Mednafen ismer. A fájloknak a MAME által adott neveket kell viselniük (például mpr17945.1).",
