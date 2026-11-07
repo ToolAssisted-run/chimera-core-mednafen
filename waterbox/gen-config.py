@@ -428,7 +428,7 @@ def main():
         "coreName": "Mednafen",
         "author": "The Mednafen Team; chimera port by Sergio Martin",
         "url": "https://github.com/ToolAssisted-run/chimera-core-mednafen",
-        "runsOn": ["windows-x86_64", "linux-x86_64", "macos-x86_64"],
+        "runsOn": ["windows-x86_64", "linux-x86_64", "macos-x86_64", "windows-aarch64", "linux-aarch64", "macos-aarch64"],
         "romFile": "disc",
         "deterministic": True,
         "suggestSettings": True,
