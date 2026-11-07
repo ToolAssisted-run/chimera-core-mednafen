@@ -3,9 +3,9 @@
  * Mednafen's own build writes this file with a configure script that probes
  * the machine it runs on. This core is built twice - for the host (the
  * reference) and for miniBox's sandbox - and the two must be the same
- * program, so the answers are written down once, by hand, for the one
- * machine both are: x86-64, little-endian, a C library with the usual
- * string functions. Everything Mednafen's window, sound output, network play
+ * program, so the answers are written down once, by hand, for the
+ * machines both can be: x86-64 or aarch64 (the CPU the build runs on),
+ * little-endian, a C library with the usual string functions. Everything Mednafen's window, sound output, network play
  * and translations would need is left undefined: none of it is compiled.
  */
 #pragma once
@@ -21,8 +21,14 @@
 #define WANT_LYNX_EMU 1
 
 /* the machine */
+/* x86-64 picks Mednafen's few x86 assembly paths; on aarch64 Mednafen's
+ * configure defines no ARCH_ at all, and the same code is plain C. */
+#if defined(__x86_64__)
 #define ARCH_X86 1
 #define ARCH_X86_64 1
+#elif !defined(__aarch64__)
+#error "this core is built for x86-64 or aarch64"
+#endif
 #define LSB_FIRST 1
 #define SIZEOF_CHAR 1
 #define SIZEOF_SHORT 2
@@ -41,7 +47,9 @@
 /* AVX in inline assembly: Mednafen's configure finds it on any x86-64
  * compiler. It selects code in the sound resamplers only where the processor
  * says it has AVX, and this core does not use those resamplers. */
+#if defined(__x86_64__)
 #define HAVE_INLINEASM_AVX 1
+#endif
 
 /* the Musepack decoder with integers, the same on every machine */
 #define MPC_FIXED_POINT 1
