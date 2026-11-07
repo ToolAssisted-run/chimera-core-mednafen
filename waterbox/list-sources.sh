@@ -19,7 +19,12 @@ cd "$1"
 		NativeVFS.cpp IPSPatcher.cpp git.cpp endian.cpp PSFLoader.cpp SSFLoader.cpp \
 		resampler/resample.c
 	find string hash compress video -name '*.cpp'
-	find trio cputest zstd -name '*.c'
+	# cputest/x86_cpu.c is x86 code, which upstream's build compiles on x86 only
+	if [ "$(uname -m)" = x86_64 ]; then
+		find trio cputest zstd -name '*.c'
+	else
+		find trio cputest zstd -name '*.c' ! -path 'cputest/x86_cpu.c'
+	fi
 	# the decoders of a disc image's compressed sound tracks (Ogg Vorbis, Musepack)
 	find tremor mpcdec -name '*.c'
 	find sound -name '*.cpp' ! -name '*generate.cpp'
